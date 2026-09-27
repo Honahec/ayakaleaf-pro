@@ -75,6 +75,8 @@ The manifests in `argocd/` use the `ayakaleaf-pro` namespace. The Argo CD applic
 kubectl apply -f argocd/project.yaml -f argocd/ayakaleaf-pro.yaml
 ```
 
+The project's resource allowlist includes `Pod` and `apps/ReplicaSet` so controller-created children and their logs remain accessible in the Argo CD resource tree.
+
 Argo CD tracks `server-pro:argocd`. Successful operations-image builds commit the new digest there; deployment-only commits do not rebuild the image. A source change during the build skips writeback, and a concurrent branch update rejects the push rather than overwriting it.
 
 This is a single-node deployment at `https://overleaf.geekpie.club`, with privileged DinD for sandboxed compilation. Data and generated secrets persist under `/var/lib/ayakaleaf-pro` on Andromeda. PV/PVC retention is not a backup, declared capacities are not quotas, and `Recreate` upgrades interrupt service.
