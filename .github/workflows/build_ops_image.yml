@@ -2,7 +2,7 @@
 # This workflow is used to build overleaf image automatically
 #
 # Published at:
-#     ghcr.io/ayaka-notes/overleaf-pro/ops
+#     ghcr.io/<repository-owner>/<repository-name>
 #
 # ---------------------------------
 
@@ -25,7 +25,6 @@ permissions:
   packages: write
 env:
   DOCKER_REGISTRY: ghcr.io
-  IMAGE_NAME: ayaka-notes/overleaf-pro
 
 jobs:
   build-image:
@@ -38,7 +37,11 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
+      - name: Resolve image repository
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: "Login to GitHub Container Registry"
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
           registry: ${{env.DOCKER_REGISTRY}}
@@ -98,7 +101,7 @@ jobs:
       # --- Build Server Image ---
       - name: "Get MONOREPO_REVISION"
         id: vars
-        run: echo "MONOREPO_REVISION=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+        run: echo "MONOREPO_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: "Build Server image"
         uses: docker/build-push-action@v7
         with:
@@ -110,9 +113,10 @@ jobs:
           build-args: |
             OVERLEAF_BASE_TAG=overleaf-pro-base:ci
           tags: |
-            sharelatex/sharelatex:latest
-          annotations: |
-            space.ayaka.overleaf-pro.ops.revision=${{ steps.vars.outputs.MONOREPO_REVISION }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.vars.outputs.MONOREPO_REVISION }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.vars.outputs.MONOREPO_REVISION }}
           # We don't want -${{ github.ref_name }} limit, just more cache hit
           no-cache: ${{ inputs.no_cache || false }}
           cache-from: type=gha,scope=ops
@@ -121,27 +125,62 @@ jobs:
           sbom: false
       # --- End of Server Image ---
 
-      # --- Push Server Image ---
-      - name: "ReTag Docker Image And Push"
+      - name: Smoke test sandboxed compilation
+        env:
+          IMAGE: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.vars.outputs.MONOREPO_REVISION }}
         run: |
-          cd ./server-ce
-          github_short_sha=$(echo ${{ github.sha }} | head -c7)
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            github_short_sha=$(echo ${{ github.event.pull_request.head.sha }} | head -c7)
-          fi
-          tag=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')-$github_short_sha
-          echo "Building tag: $tag"
-          docker tag sharelatex/sharelatex:latest ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
-          docker tag sharelatex/sharelatex:latest ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:$tag
-          docker push ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
-          docker push ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:$tag
+          compile_root=$(mktemp -d "$RUNNER_TEMP/compile-smoke.XXXXXX")
+          trap 'sudo rm -rf "$compile_root"' EXIT
+          mkdir "$compile_root/ci-smoke"
+          printf '%s\n' '\documentclass{article}\begin{document}Sandbox compile smoke test.\end{document}' > "$compile_root/ci-smoke/main.tex"
+          sudo chown -R 33:33 "$compile_root"
+          socket=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
+          socket=${socket#unix://}
+          docker run --rm -i --user www-data --group-add "$(stat -c '%g' "$socket")" \
+            --entrypoint node --workdir /overleaf/services/clsi \
+            -v "$socket:/var/run/docker.sock" \
+            -v "$compile_root:/var/lib/overleaf/data/compiles" \
+            -e SANDBOXED_COMPILES=true \
+            -e SANDBOXED_COMPILES_HOST_DIR_COMPILES="$compile_root" \
+            -e TEXLIVE_IMAGE="$IMAGE" -e TEXLIVE_IMAGE_USER=www-data \
+            "$IMAGE" --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFile } from 'node:fs/promises'
+          import runner from './app/js/CommandRunner.js'
+          let container
+          try {
+            const result = await new Promise((resolve, reject) => {
+              container = runner.run(
+                'ci-smoke', ['pdflatex', '-interaction=nonstopmode', '-halt-on-error', 'main.tex'],
+                '/var/lib/overleaf/data/compiles/ci-smoke', null, 30000, {}, 'standard', undefined,
+                (error, output) => error ? reject(error) : resolve(output)
+              )
+            })
+            assert.equal(result.exitCode, 0, result.stdout + result.stderr)
+            const pdf = await readFile('/var/lib/overleaf/data/compiles/ci-smoke/main.pdf')
+            assert.equal(pdf.subarray(0, 5).toString(), '%PDF-')
+            console.log('Sandboxed DockerRunner compilation produced a PDF successfully')
+          } finally {
+            runner.stopContainerMonitor()
+            if (container) {
+              await new Promise((resolve, reject) => runner.destroyContainer(
+                container, null, true, error => error ? reject(error) : resolve()
+              ))
+            }
+          }
+          NODE
 
-      # --- Retention Policy: Delete old images ---
-      - name: Delete old images
-        uses: snok/container-retention-policy@v3.1.0
-        with:
-          image-names: overleaf-pro/ops*
-          cut-off: 7d
-          account: ayaka-notes
-          tag-selection: both
-          token: ${{ secrets.ORGTOKEN }}
+      - name: Publish deployment image
+        if: github.event_name != 'pull_request'
+        env:
+          REVISION: ${{ steps.vars.outputs.MONOREPO_REVISION }}
+        run: |
+          image="$DOCKER_REGISTRY/$IMAGE_NAME"
+          tag="sha-$REVISION"
+          docker push "$image:$tag"
+          if [ "$GITHUB_REF" = refs/heads/server-pro ]; then
+            docker tag "$image:$tag" "$image:latest"
+            docker push "$image:latest"
+          fi
+          digest=$(docker image inspect "$image:$tag" --format '{{index .RepoDigests 0}}')
+          printf "## Deployment image\n\nTag: \`%s:%s\`\n\nArgo CD image: \`%s\`\n" "$image" "$tag" "$digest" >> "$GITHUB_STEP_SUMMARY"

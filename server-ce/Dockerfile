@@ -35,7 +35,9 @@ RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/usr/local/share/.cache/yarn,id=server-ce-yarn-fallback-cache \
     --mount=type=cache,target=/overleaf/services/web/.cache,id=server-ce-webpack-cache \
     --mount=type=tmpfs,target=/tmp \
-    node genScript compile | bash
+    printf '%s\n' '"--install.mutex" "file:/tmp/overleaf-yarn-classic-mutex"' > /tmp/.yarnrc \
+    && node genScript compile | bash \
+    && rm /tmp/.yarnrc
 
 # Enable Yarn PnP resolution for all Node.js processes
 # -----------------------------------------------------
