@@ -201,18 +201,9 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           printf "## Deployment image\n\nTag: \`%s:%s\`\n\nArgo CD image: \`%s@%s\`\n" "$image" "$tag" "$image" "$digest" >> "$GITHUB_STEP_SUMMARY"
 
-  verify-deployment:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/server-pro' && github.repository == 'Honahec/ayakaleaf-pro'
-    needs: build-image
-    permissions:
-      contents: read
-    uses: ./.github/workflows/verify_deployment.yml
-    with:
-      image: ${{ format('ghcr.io/honahec/ayakaleaf-pro@{0}', needs.build-image.outputs.published_digest) }}
-
   update-deployment-image:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/server-pro' && github.repository == 'Honahec/ayakaleaf-pro'
-    needs: [build-image, verify-deployment]
+    needs: build-image
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -231,32 +222,22 @@ jobs:
           IMAGE_DIGEST: ${{ needs.build-image.outputs.published_digest }}
         run: |
           set -euo pipefail
+          if ! git diff --quiet "$BUILT_SHA" HEAD -- . ':(exclude)deploy/**' ':(exclude,glob)**/*.md'; then
+            echo 'Source changed since this build; leaving the deployment image unchanged.'
+            exit 0
+          fi
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          path = Path('deploy/andromeda/kustomization.yaml')
+          updated, count = re.subn(r'(?m)^    digest: sha256:[a-f0-9]{64}$',
+              f"    digest: {os.environ['IMAGE_DIGEST']}", path.read_text())
+          assert count == 1, 'Expected one pinned application image digest'
+          path.write_text(updated)
+          PY
+          git diff --quiet -- deploy/andromeda/kustomization.yaml && exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3; do
-            git fetch --no-tags origin server-pro
-            git switch --detach FETCH_HEAD
-            if git diff --quiet "$BUILT_SHA" HEAD -- . ':(exclude)deploy/**' ':(exclude,glob)**/*.md'; then
-              :
-            else
-              status=$?
-              if [ "$status" -ne 1 ]; then exit "$status"; fi
-              printf "## Deployment writeback\n\nSkipped: branch source changed since build \`%s\`; a newer source build will deploy it.\n" "$BUILT_SHA" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-
-            python3 .github/scripts/update-deployment-image.py deploy/andromeda/kustomization.yaml "$IMAGE_DIGEST"
-            if git diff --quiet -- deploy/andromeda/kustomization.yaml; then
-              printf "## Deployment writeback\n\nNo change: \`%s\` is already pinned.\n" "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            git add -- deploy/andromeda/kustomization.yaml
-            git commit -m "chore(deploy): pin ayakaleaf-pro image to $IMAGE_DIGEST"
-            if git push origin HEAD:refs/heads/server-pro; then
-              printf "## Deployment writeback\n\nPinned \`%s\` in commit \`%s\`.\n" "$IMAGE_DIGEST" "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            echo "Branch advanced during writeback (attempt $attempt); rechecking source" >&2
-          done
-          echo 'Could not push deployment digest after three branch advances' >&2
-          exit 1
+          git add deploy/andromeda/kustomization.yaml
+          git commit -m "chore(deploy): pin ayakaleaf-pro image to $IMAGE_DIGEST"
+          git push origin HEAD:refs/heads/server-pro

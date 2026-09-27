@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ayakaleaf-pro
+  namespace: argocd
+spec:
+  description: Ayakaleaf Pro deployment on Andromeda
+  sourceRepos:
+    - https://github.com/Honahec/ayakaleaf-pro.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: ayakaleaf-pro
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: ''
+      kind: PersistentVolume
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: PersistentVolumeClaim
+    - group: apps
+      kind: Deployment
+    - group: networking.k8s.io
+      kind: Ingress

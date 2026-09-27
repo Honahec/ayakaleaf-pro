@@ -4,14 +4,14 @@ metadata:
   name: ayakaleaf-pro
   namespace: argocd
 spec:
-  project: default
+  project: ayakaleaf-pro
   source:
     repoURL: https://github.com/Honahec/ayakaleaf-pro.git
     targetRevision: server-pro
     path: deploy/andromeda
   destination:
     server: https://kubernetes.default.svc
-    namespace: overleaf
+    namespace: ayakaleaf-pro
   syncPolicy:
     automated:
       prune: false

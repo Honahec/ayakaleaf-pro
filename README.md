@@ -67,6 +67,18 @@ Images are tagged `sha-<full-commit-sha>`, with `latest` updated for the `server
 
 Before publishing, the workflow runs the built image's DockerRunner as `www-data` and compiles a LaTeX document to PDF in a separate container. Deployment still requires MongoDB, Redis, and a Docker daemon plus TeX Live images for sandboxed compiles; the application image does not include a running Docker daemon. The production Dockerfile uses the same Yarn Classic file-mutex configuration as the web image when packing Git dependencies during the build.
 
+### Andromeda / Argo CD
+
+The manifests in `deploy/andromeda` use the `ayakaleaf-pro` namespace. The Argo CD application and project are also named `ayakaleaf-pro`; their definitions live in the `argocd` namespace. Bootstrap them with:
+
+```sh
+kubectl apply -f deploy/argocd/project.yaml -f deploy/argocd/ayakaleaf-pro.yaml
+```
+
+Argo CD tracks `server-pro:deploy/andromeda`. Successful operations-image builds commit the new digest there; deployment-only commits do not rebuild the image. A source change during the build skips writeback, and a concurrent branch update rejects the push rather than overwriting it.
+
+This is a single-node deployment at `https://overleaf.geekpie.club`, with privileged DinD for sandboxed compilation. Data and generated secrets persist under `/var/lib/ayakaleaf-pro` on Andromeda. PV/PVC retention is not a backup, declared capacities are not quotas, and `Recreate` upgrades interrupt service.
+
 ## Upgrading
 
 If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/overleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
