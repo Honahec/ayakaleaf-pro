@@ -11,23 +11,32 @@ on:
   push:
     branches:
       - server-pro
+    paths-ignore:
+      - 'deploy/**'
+      - '**/*.md'
   pull_request:
     branches:
       - server-pro
+    paths-ignore:
+      - 'deploy/**'
+      - '**/*.md'
   workflow_dispatch:
     inputs:
       no_cache:
         description: "Build without cache"
         type: boolean
         default: false
-permissions:
-  contents: read
-  packages: write
 env:
   DOCKER_REGISTRY: ghcr.io
 
 jobs:
+  # The build only reads source; the separate writeback job has the write token.
   build-image:
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      published_digest: ${{ steps.publish.outputs.digest }}
     runs-on: ubuntu-24.04
     steps:
       # If the event is a pull request, checkout the head sha of the PR
@@ -172,6 +181,7 @@ jobs:
           NODE
 
       - name: Publish deployment image
+        id: publish
         if: github.event_name != 'pull_request'
         env:
           REVISION: ${{ steps.vars.outputs.MONOREPO_REVISION }}
@@ -183,5 +193,70 @@ jobs:
             docker tag "$image:$tag" "$image:latest"
             docker push "$image:latest"
           fi
-          digest=$(docker image inspect "$image:$tag" --format '{{index .RepoDigests 0}}')
-          printf "## Deployment image\n\nTag: \`%s:%s\`\n\nArgo CD image: \`%s\`\n" "$image" "$tag" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          digest=$(docker buildx imagetools inspect "$image:$tag" --format '{{.Manifest.Digest}}')
+          if ! [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "Unexpected published image digest: $digest" >&2
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          printf "## Deployment image\n\nTag: \`%s:%s\`\n\nArgo CD image: \`%s@%s\`\n" "$image" "$tag" "$image" "$digest" >> "$GITHUB_STEP_SUMMARY"
+
+  verify-deployment:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/server-pro' && github.repository == 'Honahec/ayakaleaf-pro'
+    needs: build-image
+    permissions:
+      contents: read
+    uses: ./.github/workflows/verify_deployment.yml
+    with:
+      image: ${{ format('ghcr.io/honahec/ayakaleaf-pro@{0}', needs.build-image.outputs.published_digest) }}
+
+  update-deployment-image:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/server-pro' && github.repository == 'Honahec/ayakaleaf-pro'
+    needs: [build-image, verify-deployment]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: server-pro-andromeda-image-writeback
+      cancel-in-progress: false
+    steps:
+      - name: Checkout clean deployment source
+        uses: actions/checkout@v7
+        with:
+          ref: server-pro
+          fetch-depth: 0
+      - name: Update image digest if source remains current
+        env:
+          BUILT_SHA: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ needs.build-image.outputs.published_digest }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch --no-tags origin server-pro
+            git switch --detach FETCH_HEAD
+            if git diff --quiet "$BUILT_SHA" HEAD -- . ':(exclude)deploy/**' ':(exclude,glob)**/*.md'; then
+              :
+            else
+              status=$?
+              if [ "$status" -ne 1 ]; then exit "$status"; fi
+              printf "## Deployment writeback\n\nSkipped: branch source changed since build \`%s\`; a newer source build will deploy it.\n" "$BUILT_SHA" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            python3 .github/scripts/update-deployment-image.py deploy/andromeda/kustomization.yaml "$IMAGE_DIGEST"
+            if git diff --quiet -- deploy/andromeda/kustomization.yaml; then
+              printf "## Deployment writeback\n\nNo change: \`%s\` is already pinned.\n" "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            git add -- deploy/andromeda/kustomization.yaml
+            git commit -m "chore(deploy): pin ayakaleaf-pro image to $IMAGE_DIGEST"
+            if git push origin HEAD:refs/heads/server-pro; then
+              printf "## Deployment writeback\n\nPinned \`%s\` in commit \`%s\`.\n" "$IMAGE_DIGEST" "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Branch advanced during writeback (attempt $attempt); rechecking source" >&2
+          done
+          echo 'Could not push deployment digest after three branch advances' >&2
+          exit 1

@@ -1,0 +1,9 @@
+{
+  "storage-driver": "overlay2",
+  "bridge": "none",
+  "iptables": false,
+  "ip6tables": false,
+  "features": {
+    "containerd-snapshotter": false
+  }
+}

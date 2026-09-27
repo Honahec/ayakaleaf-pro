@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: overleaf
+resources:
+  - storage.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+configMapGenerator:
+  - name: ayakaleaf-pro-bootstrap
+    files:
+      - bootstrap/ensure-secrets.sh
+      - bootstrap/mongo-ready.js
+      - bootstrap/docker-ready.sh
+      - bootstrap/daemon.json
+images:
+  - name: ghcr.io/honahec/ayakaleaf-pro
+    digest: sha256:f1ab24cada1f1fbbf957532d05254be7e9733ba3976f5e8b122d328ba3b16650

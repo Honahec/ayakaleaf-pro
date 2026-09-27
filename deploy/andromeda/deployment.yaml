@@ -1,0 +1,290 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ayakaleaf-pro
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 1800
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ayakaleaf-pro
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ayakaleaf-pro
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: andromeda
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 180
+      # DinD uses Alpine's www-data group (82) for its UNIX socket; the app's
+      # runit services (uid 33) inherit this supplemental group.
+      securityContext:
+        supplementalGroups: [82]
+      initContainers:
+        # Native sidecars stay up for the lifetime of the app and are started
+        # in order. Kubernetes shuts them down after the app, in reverse order.
+        - name: docker
+          image: public.ecr.aws/docker/library/docker:29.8.1-dind@sha256:3f3c01aaaebf7cce837356b688b7c059a4749f10bd7660dec7c58fc454a283f0
+          imagePullPolicy: IfNotPresent
+          restartPolicy: Always
+          command: [dockerd-entrypoint.sh, dockerd]
+          args:
+            - --host=unix:///var/run/ayakaleaf-docker/docker.sock
+            - --config-file=/etc/ayakaleaf-bootstrap/daemon.json
+            - --group=www-data
+          env:
+            - name: DOCKER_HOST
+              value: unix:///var/run/ayakaleaf-docker/docker.sock
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          startupProbe:
+            exec:
+              command: [docker, info]
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 120
+          readinessProbe:
+            exec:
+              command: [docker, info]
+            periodSeconds: 20
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: [docker, info]
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: docker-data
+              mountPath: /var/lib/docker
+            - name: docker-socket
+              mountPath: /var/run/ayakaleaf-docker
+            - name: app-data
+              mountPath: /var/lib/ayakaleaf-pro/app
+            - name: bootstrap
+              mountPath: /etc/ayakaleaf-bootstrap
+              readOnly: true
+        - name: prepare-texlive
+          image: public.ecr.aws/docker/library/docker:29.8.1-cli@sha256:018edbc908e08fcc9dbf029c812c34251e9b4719e6f71ca0e5eae2a987d014ca
+          imagePullPolicy: IfNotPresent
+          command: [/bin/sh, /etc/ayakaleaf-bootstrap/docker-ready.sh]
+          env:
+            - name: DOCKER_HOST
+              value: unix:///var/run/ayakaleaf-docker/docker.sock
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/ayakaleaf-docker
+            - name: bootstrap
+              mountPath: /etc/ayakaleaf-bootstrap
+              readOnly: true
+        - name: mongo
+          image: public.ecr.aws/docker/library/mongo:8.0@sha256:4968f22d0c6c10ef29952f3e807f62872ba22b3312f25803564fbfc08255efc2
+          imagePullPolicy: IfNotPresent
+          restartPolicy: Always
+          command: [docker-entrypoint.sh]
+          args: [mongod, --replSet, overleaf, --bind_ip, 127.0.0.1]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          startupProbe:
+            exec:
+              command:
+                - mongosh
+                - --quiet
+                - mongodb://127.0.0.1:27017/admin?directConnection=true
+                - --file
+                - /etc/ayakaleaf-bootstrap/mongo-ready.js
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 120
+          readinessProbe:
+            exec:
+              command: [mongosh, --quiet, --eval, "if (!db.getSiblingDB('admin').hello().isWritablePrimary) quit(1)"]
+            periodSeconds: 20
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: [mongosh, --quiet, --eval, "if (db.getSiblingDB('admin').runCommand({ping:1}).ok !== 1) quit(1)"]
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: bootstrap
+              mountPath: /etc/ayakaleaf-bootstrap
+              readOnly: true
+        - name: redis
+          image: public.ecr.aws/docker/library/redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+          imagePullPolicy: IfNotPresent
+          restartPolicy: Always
+          command: [docker-entrypoint.sh]
+          args: [redis-server, --appendonly, "yes", --bind, 127.0.0.1]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          startupProbe:
+            exec:
+              command: [redis-cli, -h, 127.0.0.1, ping]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: [redis-cli, -h, 127.0.0.1, ping]
+            periodSeconds: 20
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: [redis-cli, -h, 127.0.0.1, ping]
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+        - name: initialize-secrets
+          image: ghcr.io/honahec/ayakaleaf-pro
+          imagePullPolicy: IfNotPresent
+          command: [/bin/bash, /etc/ayakaleaf-bootstrap/ensure-secrets.sh]
+          args: [init]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: app-data
+              mountPath: /var/lib/overleaf
+            - name: bootstrap
+              mountPath: /etc/ayakaleaf-bootstrap
+              readOnly: true
+      containers:
+        - name: overleaf
+          image: ghcr.io/honahec/ayakaleaf-pro
+          imagePullPolicy: IfNotPresent
+          command: [/bin/bash, /etc/ayakaleaf-bootstrap/ensure-secrets.sh]
+          args: [run]
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: OVERLEAF_IS_SERVER_PRO
+              value: "true"
+            - name: OVERLEAF_SITE_URL
+              value: https://overleaf.geekpie.club
+            - name: OVERLEAF_SECURE_COOKIE
+              value: "true"
+            - name: OVERLEAF_ALLOW_PUBLIC_REGISTRATION
+              value: "false"
+            - name: OVERLEAF_MONGO_URL
+              value: mongodb://127.0.0.1:27017/sharelatex?replicaSet=overleaf&directConnection=true
+            - name: OVERLEAF_REDIS_HOST
+              value: 127.0.0.1
+            - name: REDIS_HOST
+              value: 127.0.0.1
+            - name: SANDBOXED_COMPILES
+              value: "true"
+            - name: DOCKER_RUNNER
+              value: "true"
+            - name: SANDBOXED_COMPILES_SIBLING_CONTAINERS
+              value: "true"
+            - name: SANDBOXED_COMPILES_HOST_DIR_COMPILES
+              value: /var/lib/ayakaleaf-pro/app/data/compiles
+            - name: SANDBOXED_COMPILES_HOST_DIR_OUTPUT
+              value: /var/lib/ayakaleaf-pro/app/data/output
+            - name: SANDBOXED_COMPILES_HOST_DIR_CACHE
+              value: /var/lib/ayakaleaf-pro/app/data/cache
+            - name: TEX_LIVE_DOCKER_IMAGE
+              value: ghcr.io/ayaka-notes/texlive-full:2026.1
+            - name: TEXLIVE_IMAGE
+              value: ghcr.io/ayaka-notes/texlive-full:2026.1
+            - name: ALL_TEX_LIVE_DOCKER_IMAGES
+              value: ghcr.io/ayaka-notes/texlive-full:2026.1
+            - name: ALL_TEX_LIVE_DOCKER_IMAGE_NAMES
+              value: TeX Live 2026
+            - name: ALLOWED_IMAGES
+              value: ghcr.io/ayaka-notes/texlive-full:2026.1
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          startupProbe:
+            httpGet:
+              path: /login
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: app-data
+              mountPath: /var/lib/overleaf
+            - name: docker-socket
+              mountPath: /var/run/ayakaleaf-docker
+            - name: bootstrap
+              mountPath: /etc/ayakaleaf-bootstrap
+              readOnly: true
+      volumes:
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: ayakaleaf-pro-app
+        - name: mongo-data
+          persistentVolumeClaim:
+            claimName: ayakaleaf-pro-mongo
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: ayakaleaf-pro-redis
+        - name: docker-data
+          persistentVolumeClaim:
+            claimName: ayakaleaf-pro-docker
+        - name: docker-socket
+          emptyDir: {}
+        - name: bootstrap
+          configMap:
+            name: ayakaleaf-pro-bootstrap
+            defaultMode: 0444
