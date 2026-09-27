@@ -15,4 +15,4 @@ configMapGenerator:
       - bootstrap/daemon.json
 images:
   - name: ghcr.io/honahec/ayakaleaf-pro
-    digest: sha256:f1ab24cada1f1fbbf957532d05254be7e9733ba3976f5e8b122d328ba3b16650
+    digest: sha256:130e1acb2d6de2f8416646eea579decb7c094aa0160dc01baaa3f0b5bb95d370
