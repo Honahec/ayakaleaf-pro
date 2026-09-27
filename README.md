@@ -59,6 +59,14 @@ If you just want to try Ayakaleaf Pro without setting up a server, you can use o
 
 If you want to deploy Ayakaleaf Pro for production use,  we have detailed installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page. We highly recommend installing Ayakaleaf Pro using the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/).
 
+### Building a deployment image with GitHub Actions
+
+The [Build Operations Image](.github/workflows/build_ops_image.yml) workflow builds the all-in-one `linux/amd64` server image on pushes to `server-pro`, or through **Run workflow**. It publishes to `ghcr.io/<owner>/<repository>` (lowercase) using `GITHUB_TOKEN`; no upstream organization token is required. Pull requests build and run the smoke check without publishing.
+
+Images are tagged `sha-<full-commit-sha>`, with `latest` updated for the `server-pro` branch. The workflow summary includes the published digest. Pin `ghcr.io/<owner>/<repository>@sha256:<digest>` in Kubernetes/Argo CD manifests for reproducible deployments and rollbacks. Configure an `imagePullSecret` if the GHCR package is private.
+
+Before publishing, the workflow runs the built image's DockerRunner as `www-data` and compiles a LaTeX document to PDF in a separate container. Deployment still requires MongoDB, Redis, and a Docker daemon plus TeX Live images for sandboxed compiles; the application image does not include a running Docker daemon. The production Dockerfile uses the same Yarn Classic file-mutex configuration as the web image when packing Git dependencies during the build.
+
 ## Upgrading
 
 If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/overleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
