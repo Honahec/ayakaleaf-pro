@@ -129,6 +129,7 @@ jobs:
         env:
           IMAGE: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.vars.outputs.MONOREPO_REVISION }}
         run: |
+          printf 'FROM overleaf-pro-base:ci\nENTRYPOINT []\n' | docker build --tag ayakaleaf-tex-smoke:ci -
           compile_root=$(mktemp -d "$RUNNER_TEMP/compile-smoke.XXXXXX")
           trap 'sudo rm -rf "$compile_root"' EXIT
           mkdir "$compile_root/ci-smoke"
@@ -142,7 +143,7 @@ jobs:
             -v "$compile_root:/var/lib/overleaf/data/compiles" \
             -e SANDBOXED_COMPILES=true \
             -e SANDBOXED_COMPILES_HOST_DIR_COMPILES="$compile_root" \
-            -e TEXLIVE_IMAGE="$IMAGE" -e TEXLIVE_IMAGE_USER=www-data \
+            -e TEXLIVE_IMAGE=ayakaleaf-tex-smoke:ci -e TEXLIVE_IMAGE_USER=www-data \
             "$IMAGE" --input-type=module <<'NODE'
           import assert from 'node:assert/strict'
           import { readFile } from 'node:fs/promises'
