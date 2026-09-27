@@ -69,13 +69,13 @@ Before publishing, the workflow runs the built image's DockerRunner as `www-data
 
 ### Andromeda / Argo CD
 
-The manifests in `deploy/andromeda` use the `ayakaleaf-pro` namespace. The Argo CD application and project are also named `ayakaleaf-pro`; their definitions live in the `argocd` namespace. Bootstrap them with:
+The manifests in `argocd/` use the `ayakaleaf-pro` namespace. The Argo CD application and project are also named `ayakaleaf-pro`; their definitions live in the `argocd` namespace. Bootstrap them with:
 
 ```sh
-kubectl apply -f deploy/argocd/project.yaml -f deploy/argocd/ayakaleaf-pro.yaml
+kubectl apply -f argocd/project.yaml -f argocd/ayakaleaf-pro.yaml
 ```
 
-Argo CD tracks `server-pro:deploy/andromeda`. Successful operations-image builds commit the new digest there; deployment-only commits do not rebuild the image. A source change during the build skips writeback, and a concurrent branch update rejects the push rather than overwriting it.
+Argo CD tracks `server-pro:argocd`. Successful operations-image builds commit the new digest there; deployment-only commits do not rebuild the image. A source change during the build skips writeback, and a concurrent branch update rejects the push rather than overwriting it.
 
 This is a single-node deployment at `https://overleaf.geekpie.club`, with privileged DinD for sandboxed compilation. Data and generated secrets persist under `/var/lib/ayakaleaf-pro` on Andromeda. PV/PVC retention is not a backup, declared capacities are not quotas, and `Recreate` upgrades interrupt service.
 

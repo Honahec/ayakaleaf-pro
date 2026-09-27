@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/Honahec/ayakaleaf-pro.git
     targetRevision: server-pro
-    path: deploy/andromeda
+    path: argocd
   destination:
     server: https://kubernetes.default.svc
     namespace: ayakaleaf-pro

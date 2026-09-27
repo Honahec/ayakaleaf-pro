@@ -12,13 +12,13 @@ on:
     branches:
       - server-pro
     paths-ignore:
-      - 'deploy/**'
+      - 'argocd/**'
       - '**/*.md'
   pull_request:
     branches:
       - server-pro
     paths-ignore:
-      - 'deploy/**'
+      - 'argocd/**'
       - '**/*.md'
   workflow_dispatch:
     inputs:
@@ -222,22 +222,22 @@ jobs:
           IMAGE_DIGEST: ${{ needs.build-image.outputs.published_digest }}
         run: |
           set -euo pipefail
-          if ! git diff --quiet "$BUILT_SHA" HEAD -- . ':(exclude)deploy/**' ':(exclude,glob)**/*.md'; then
+          if ! git diff --quiet "$BUILT_SHA" HEAD -- . ':(exclude)argocd/**' ':(exclude,glob)**/*.md'; then
             echo 'Source changed since this build; leaving the deployment image unchanged.'
             exit 0
           fi
           python3 - <<'PY'
           import os, re
           from pathlib import Path
-          path = Path('deploy/andromeda/kustomization.yaml')
+          path = Path('argocd/kustomization.yaml')
           updated, count = re.subn(r'(?m)^    digest: sha256:[a-f0-9]{64}$',
               f"    digest: {os.environ['IMAGE_DIGEST']}", path.read_text())
           assert count == 1, 'Expected one pinned application image digest'
           path.write_text(updated)
           PY
-          git diff --quiet -- deploy/andromeda/kustomization.yaml && exit 0
+          git diff --quiet -- argocd/kustomization.yaml && exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy/andromeda/kustomization.yaml
+          git add argocd/kustomization.yaml
           git commit -m "chore(deploy): pin ayakaleaf-pro image to $IMAGE_DIGEST"
           git push origin HEAD:refs/heads/server-pro
