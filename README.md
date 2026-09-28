@@ -81,6 +81,8 @@ Argo CD tracks `server-pro:argocd`. Successful operations-image builds commit th
 
 This is a single-node deployment at `https://overleaf.geekpie.club`, with privileged DinD for sandboxed compilation. Data and generated secrets persist under `/var/lib/ayakaleaf-pro` on Andromeda. PV/PVC retention is not a backup, declared capacities are not quotas, and `Recreate` upgrades interrupt service.
 
+OIDC uses the callback `${OVERLEAF_SITE_URL}/oidc/login/callback`. The `passport-openidconnect` Yarn patch generates state and nonce values with Base64URL rather than Base64, preserving their randomness while avoiding `+` being decoded as a space by identity-provider redirect code that does not URL-encode state. Session binding, exact state comparison, and single-use verification remain enabled. After upgrading, start a new login from `/oidc/login`; do not reuse a previous authorization callback. Regression coverage lives in `services/web/test/unit/src/Authentication/OIDCState.test.mjs`.
+
 ## Upgrading
 
 If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/overleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
