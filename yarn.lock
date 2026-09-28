@@ -7041,7 +7041,7 @@ __metadata:
     passport-ldapauth: "npm:^3.0.1"
     passport-local: "npm:^1.0.0"
     passport-oauth2: "patch:passport-oauth2@npm%3A1.6.1#~/.yarn/patches/passport-oauth2-npm-1.6.1.patch"
-    passport-openidconnect: "npm:^0.1.2"
+    passport-openidconnect: "patch:passport-openidconnect@npm%3A0.1.2#~/.yarn/patches/passport-openidconnect-npm-0.1.2.patch"
     passport-orcid: "npm:0.0.4"
     path-browserify: "npm:^1.0.1"
     pdfjs-dist: "npm:5.1.91"
@@ -24054,13 +24054,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"passport-openidconnect@npm:^0.1.2":
+"passport-openidconnect@npm:0.1.2":
   version: 0.1.2
   resolution: "passport-openidconnect@npm:0.1.2"
   dependencies:
     oauth: "npm:0.10.x"
     passport-strategy: "npm:1.x.x"
   checksum: 10c0/4d4662b91e2580baa7cf2f341904c352de9ec776a3897f8bf51a90f248ee7dab26b94e2e3c590d14821b04b0fa95cb8d7cfad6edc095e3966b7666e8779b0b68
+  languageName: node
+  linkType: hard
+
+"passport-openidconnect@patch:passport-openidconnect@npm%3A0.1.2#~/.yarn/patches/passport-openidconnect-npm-0.1.2.patch":
+  version: 0.1.2
+  resolution: "passport-openidconnect@patch:passport-openidconnect@npm%3A0.1.2#~/.yarn/patches/passport-openidconnect-npm-0.1.2.patch::version=0.1.2&hash=1bcacf"
+  dependencies:
+    oauth: "npm:0.10.x"
+    passport-strategy: "npm:1.x.x"
+  checksum: 10c0/6e1f1500f3f354fda59152984a74e9553b2cdd743cbb245fcccf1e84bb8cdd82ff0493be1b94652de4225a2ba7f31743202494c983a8ab193692df1a292e308f
   languageName: node
   linkType: hard
 
