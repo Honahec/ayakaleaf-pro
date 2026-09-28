@@ -120,12 +120,24 @@ spec:
             failureThreshold: 120
           readinessProbe:
             exec:
-              command: [mongosh, --quiet, --eval, "if (!db.getSiblingDB('admin').hello().isWritablePrimary) quit(1)"]
+              command:
+                [
+                  mongosh,
+                  --quiet,
+                  --eval,
+                  "if (!db.getSiblingDB('admin').hello().isWritablePrimary) quit(1)",
+                ]
             periodSeconds: 20
             timeoutSeconds: 10
           livenessProbe:
             exec:
-              command: [mongosh, --quiet, --eval, "if (db.getSiblingDB('admin').runCommand({ping:1}).ok !== 1) quit(1)"]
+              command:
+                [
+                  mongosh,
+                  --quiet,
+                  --eval,
+                  "if (db.getSiblingDB('admin').runCommand({ping:1}).ok !== 1) quit(1)",
+                ]
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 5
@@ -196,6 +208,9 @@ spec:
             - name: http
               containerPort: 80
               protocol: TCP
+          envFrom:
+            - secretRef:
+                name: ayakaleaf-oidc
           env:
             - name: OVERLEAF_IS_SERVER_PRO
               value: "true"
@@ -233,6 +248,30 @@ spec:
               value: TeX Live 2026
             - name: ALLOWED_IMAGES
               value: ghcr.io/ayaka-notes/texlive-full:2026.1
+            - name: EXTERNAL_AUTH
+              value: oidc
+            - name: OVERLEAF_OIDC_PROVIDER_ID
+              value: casdoor
+            - name: OVERLEAF_OIDC_PROVIDER_NAME
+              value: GeekPie
+            - name: OVERLEAF_OIDC_IDENTITY_SERVICE_NAME
+              value: 使用 GeekPie 账号登录
+            - name: OVERLEAF_OIDC_ISSUER
+              value: https://auth.geekpie.club
+            - name: OVERLEAF_OIDC_AUTHORIZATION_URL
+              value: https://auth.geekpie.club/login/oauth/authorize
+            - name: OVERLEAF_OIDC_TOKEN_URL
+              value: https://auth.geekpie.club/api/login/oauth/access_token
+            - name: OVERLEAF_OIDC_USER_INFO_URL
+              value: https://auth.geekpie.club/api/userinfo
+            - name: OVERLEAF_OIDC_LOGOUT_URL
+              value: https://auth.geekpie.club/api/logout
+            - name: OVERLEAF_OIDC_SCOPE
+              value: openid profile email
+            - name: OVERLEAF_OIDC_USER_ID_FIELD
+              value: id
+            - name: OVERLEAF_OIDC_UPDATE_USER_DETAILS_ON_LOGIN
+              value: "false"
           resources:
             requests:
               cpu: 500m
