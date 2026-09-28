@@ -1,9 +1,0 @@
-diff --git a/lib/utils.js b/lib/utils.js
---- a/lib/utils.js
-+++ b/lib/utils.js
-@@ -79,4 +79,4 @@ exports.uid = function(len) {
-   return crypto.randomBytes(Math.ceil(len * 3 / 4))
--    .toString('base64')
-+    .toString('base64url')
-     .slice(0, len);
- };
