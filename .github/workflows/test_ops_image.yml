@@ -28,7 +28,7 @@ jobs:
   # Deploy the image with the toolkit and run one suite per runner,
   # see server-ce/test/README.md
   e2e-test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       # Every suite runs a whole Overleaf, keep the number of runners bounded

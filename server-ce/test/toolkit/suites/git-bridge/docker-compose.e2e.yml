@@ -2,6 +2,9 @@
 # default 8000, so the suite only passes when Overleaf, nginx included, reaches
 # git-bridge through GIT_BRIDGE_HOST and GIT_BRIDGE_PORT.
 services:
+  mongo:
+    environment:
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
   sharelatex:
     environment:
       OVERLEAF_CONFIG: /etc/overleaf/settings.e2e.cjs
