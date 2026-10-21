@@ -144,7 +144,9 @@ One folder per module in `toolkit/suites/`, named and nested like
   with the old owner kept as editor.
 - `template-gallery/` – publishing a project as a template, the gallery
   (categories, search, sort, pages), editing, overwriting and deleting
-  templates, creating projects from them, permissions.
+  templates, creating projects from them, permissions. The `templates-user/`
+  variant runs with `OVERLEAF_TEMPLATES_USER_ID` set to a user that is not an
+  admin, created by `toolkit/services/templates-user`.
 - `authentication/ldap/`, `authentication/saml/`, `authentication/oidc/` –
   login through [goauthentik](https://goauthentik.io), admin mapping and its
   updates on login. LDAP and SAML start with the launchpad's email-only admin
