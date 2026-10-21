@@ -480,6 +480,49 @@ describe('permissions', function () {
     expectStatus(204, 'POST', reopen(reviewerThread))
   })
 
+  it('lets a reviewer delete their own reply but not those of others', function () {
+    // Message ids of the owner thread by content
+    const messageIds = () =>
+      cy.request(`/project/${projectId}/threads`).then(response => {
+        const ids: Record<string, string> = {}
+        for (const message of response.body[ownerThread].messages) {
+          ids[message.content] = message.id
+        }
+        return ids
+      })
+    const message = (id: string) => `/thread/${ownerThread}/messages/${id}`
+
+    asUser(editor)
+    expectStatus(204, 'POST', `/thread/${ownerThread}/messages`, {
+      content: 'Editor reply',
+    })
+    asUser(reviewer)
+    expectStatus(204, 'POST', `/thread/${ownerThread}/messages`, {
+      content: 'Reviewer reply',
+    })
+    messageIds().then(ids => {
+      expectStatus(403, 'DELETE', message(ids['Owner thread']))
+      expectStatus(403, 'DELETE', message(ids['Editor reply']))
+      expectStatus(204, 'DELETE', message(ids['Reviewer reply']))
+    })
+    messageIds().should(ids => {
+      expect(ids).to.include.keys('Owner thread', 'Editor reply')
+      expect(ids).not.to.have.any.keys('Reviewer reply')
+    })
+
+    // Editors still delete the replies of others
+    expectStatus(204, 'POST', `/thread/${ownerThread}/messages`, {
+      content: 'Second reviewer reply',
+    })
+    asUser(editor)
+    messageIds().then(ids => {
+      expectStatus(204, 'DELETE', message(ids['Second reviewer reply']))
+    })
+    messageIds().should(ids => {
+      expect(ids).not.to.have.any.keys('Second reviewer reply')
+    })
+  })
+
   it('lets an invited viewer read the review but change nothing', function () {
     asUser(viewer)
     canRead(200)

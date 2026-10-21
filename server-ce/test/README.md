@@ -75,7 +75,8 @@ One folder per module in `toolkit/suites/`, named and nested like
   missing pages, the login for signed-out visitors, and the Documentation
   links in the header, the welcome message and the editor's Help menu.
   Pages come from the public Overleaf wiki, so this suite needs internet
-  access and starts slower.
+  access and starts slower. The `wiki-unreachable/` variant runs afterwards
+  with the wiki down and every cached page stale.
 - `python-runner/` – running `.py` files with the self-hosted Pyodide: output
   and the last value, stderr, Python and syntax errors, packages that are not
   built in, built-in packages from the instance, reading project files,

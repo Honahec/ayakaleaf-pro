@@ -36,6 +36,7 @@ async function checkFileCache(learnPagesFolder, pageName) {
     }, `out of date cache detected for file: ${path}`)
 
     const BASE_URL = Settings.apis.wiki.url
+    const stale = stat && (await fs.promises.readFile(path))
 
     try {
       await fs.promises.unlink(path)
@@ -43,7 +44,15 @@ async function checkFileCache(learnPagesFolder, pageName) {
     } catch (e) {
       logger.error({ err: e }, `error deleting cached page file: ${path}`)
     }
-    await scrapeAndCachePage(BASE_URL, pageName)
+    try {
+      await scrapeAndCachePage(BASE_URL, pageName)
+    } catch (e) {
+      if (!stale) throw e
+      // The wiki is unreachable: keep serving the stale copy, which is
+      // tried again after maxCacheAge
+      logger.warn({ err: e }, `error refreshing cached page file: ${path}`)
+      await fs.promises.writeFile(path, stale)
+    }
   }
 
 }

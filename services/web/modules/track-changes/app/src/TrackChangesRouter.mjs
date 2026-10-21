@@ -51,7 +51,7 @@ export default {
     webRouter.delete(
       '/project/:project_id/thread/:thread_id/messages/:message_id',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      AuthorizationMiddleware.ensureUserCanWriteOrReviewProjectContent,
       TrackChangesController.deleteMessage
     )
     webRouter.post(
