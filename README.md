@@ -45,6 +45,7 @@ Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and ca
 - Track Changes (With Review and Comment Panel)
 - Full Project History(With Restore and Download)
 - Symbol Palette (Insert Math Symbols in One Click)
+- Full i18n Translation (Every UI String in 18 Languages)
 - ARM Support(x86_64/arm64 on Docker)
 
 Last but not least, Ayakaleaf Pro is open-source, free to use and modify. You can self-host it and contribute to the development of Ayakaleaf Pro. For more details, please check [Developer Documentation](https://ayakaleaf-pro.ayaka.space/dev) page.
@@ -64,7 +65,7 @@ If you want to deploy Ayakaleaf Pro for production use,  we have detailed instal
 
 ## Upgrading
 
-If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/overleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
+If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/ayakaleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
 
 ## Translations
 

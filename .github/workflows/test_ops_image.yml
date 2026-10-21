@@ -22,7 +22,6 @@ permissions:
   packages: read
 env:
   DOCKER_REGISTRY: ghcr.io
-  IMAGE_NAME: ayaka-notes/overleaf-pro
 
 jobs:
   # Deploy the image with the toolkit and run one suite per runner,
@@ -78,7 +77,8 @@ jobs:
         working-directory: ./server-ce/test/toolkit
         # Mongo sometimes exits while the toolkit starts it, start over then
         run: |
-          image=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:${{inputs.ops_tag || 'latest'}}
+          # GHCR image names must be lowercase
+          image=${{env.DOCKER_REGISTRY}}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro/ops:${{inputs.ops_tag || 'latest'}}
           for attempt in 1 2 3; do
             make setup SUITE=${{matrix.suite}} OVERLEAF_IMAGE=$image && exit 0
             echo "::warning::Setup attempt $attempt failed"

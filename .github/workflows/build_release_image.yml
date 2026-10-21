@@ -13,9 +13,12 @@ name: Build Release Image
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   GHCR_REGISTRY: ghcr.io
-  REGISTRY_IMAGE: ghcr.io/ayaka-notes/overleaf-pro
 
 jobs:
   build:
@@ -31,7 +34,14 @@ jobs:
     steps:
       - name: Get latest release branch
         run: |
-          echo "LATEST_RELEASE_REF=$(git ls-remote --heads --sort='version:refname' https://github.com/ayaka-notes/overleaf-pro.git 'release-v*' | tail -n1 | cut -d/ -f3)" >> $GITHUB_ENV
+          ref=$(git ls-remote --heads --sort='version:refname' ${{ github.server_url }}/${{ github.repository }}.git 'release-v*' | tail -n1 | cut -d/ -f3)
+          if [ -z "$ref" ]; then
+            echo "::error::No release-v* branch in ${{ github.repository }}"
+            exit 1
+          fi
+          echo "LATEST_RELEASE_REF=$ref" >> $GITHUB_ENV
+          # GHCR image names must be lowercase
+          echo "REGISTRY_IMAGE=${{ env.GHCR_REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro" >> $GITHUB_ENV
       - name: "Checkout Repository"
         uses: actions/checkout@v7
         with:
@@ -63,7 +73,7 @@ jobs:
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
-          password: ${{ secrets.ORGTOKEN }}
+          password: ${{ secrets.ORGTOKEN || secrets.GITHUB_TOKEN }}
       
       # --- We need to sync yarn.lock/i18 to ensure consistency ---
       - name: "Sync yarn.lock And Prepare .dockerignore"
@@ -155,6 +165,11 @@ jobs:
     needs:
       - build
     steps:
+      - name: Set image name
+        run: |
+          # GHCR image names must be lowercase
+          echo "REGISTRY_IMAGE=${{ env.GHCR_REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro" >> $GITHUB_ENV
+
       - name: Download digests
         uses: actions/download-artifact@v8
         with:
@@ -167,7 +182,7 @@ jobs:
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
-          password: ${{ secrets.ORGTOKEN }}
+          password: ${{ secrets.ORGTOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -193,6 +208,7 @@ jobs:
 
       # --- Retention Policy: Delete old images ---
       - name: Delete old images
+        if: github.repository_owner == 'ayaka-notes'
         uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro
@@ -214,7 +230,14 @@ jobs:
     steps:
       - name: Get latest release branch
         run: |
-          echo "LATEST_RELEASE_REF=$(git ls-remote --heads --sort='version:refname' https://github.com/ayaka-notes/overleaf-pro.git 'release-v*' | tail -n1 | cut -d/ -f3)" >> $GITHUB_ENV
+          ref=$(git ls-remote --heads --sort='version:refname' ${{ github.server_url }}/${{ github.repository }}.git 'release-v*' | tail -n1 | cut -d/ -f3)
+          if [ -z "$ref" ]; then
+            echo "::error::No release-v* branch in ${{ github.repository }}"
+            exit 1
+          fi
+          echo "LATEST_RELEASE_REF=$ref" >> $GITHUB_ENV
+          # GHCR image names must be lowercase
+          echo "REGISTRY_IMAGE=${{ env.GHCR_REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro" >> $GITHUB_ENV
       - name: "Checkout Repository"
         uses: actions/checkout@v7
         with:
@@ -246,7 +269,7 @@ jobs:
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
-          password: ${{ secrets.ORGTOKEN }}
+          password: ${{ secrets.ORGTOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker (enable containerd image store)
         uses: docker/setup-docker-action@v5
@@ -298,6 +321,11 @@ jobs:
     needs:
       - build_git_bridge
     steps:
+      - name: Set image name
+        run: |
+          # GHCR image names must be lowercase
+          echo "REGISTRY_IMAGE=${{ env.GHCR_REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro" >> $GITHUB_ENV
+
       - name: Download digests
         uses: actions/download-artifact@v8
         with:
@@ -310,7 +338,7 @@ jobs:
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
-          password: ${{ secrets.ORGTOKEN }}
+          password: ${{ secrets.ORGTOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -335,6 +363,7 @@ jobs:
           docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}/git-bridge:${{ needs.build_git_bridge.outputs.version }}
 
       - name: Delete old images
+        if: github.repository_owner == 'ayaka-notes'
         uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro/git-bridge
