@@ -58,8 +58,8 @@ One folder per module in `toolkit/suites/`, named and nested like
   `anonymous-sharing/` variant lets a signed-out editor through the edit link
   delete threads, and refuses resolving and reopening them.
 - `git-bridge/` – git tokens in the settings, cloning, pushing and pulling
-  with the git CLI: binary files, folders, renames, deletes, out-of-date
-  pushes, and access for invited and link-shared editors, reviewers and
+  with the git CLI: binary files, folders, renames, deletes, docs with a
+  non-text extension staying docs, out-of-date pushes, and access for invited and link-shared editors, reviewers and
   viewers. git-bridge runs on port 8001, so nginx must follow
   `GIT_BRIDGE_HOST`/`GIT_BRIDGE_PORT`, and its internal routes stay 404.
 - `oauth2-server/` – the Git authentication tokens in the settings: generating,

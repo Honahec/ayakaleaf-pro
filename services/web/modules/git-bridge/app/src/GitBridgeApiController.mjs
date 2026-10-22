@@ -499,7 +499,7 @@ async function processFileUpdate(projectId, filePath, fileUrl, userId) {
     const elementPath = "/" + filePath
 
     // Determine if this should be a doc or binary file
-    const fileType = await determineFileType(projectId, filePath, fsPath)
+    const fileType = await determineFileType(projectId, elementPath, fsPath)
 
     if (fileType === 'doc') {
       // Process as text document

@@ -243,6 +243,27 @@ describe('git access to a project', function () {
     })
   })
 
+  it('keeps a doc created in the editor a doc when its push looks binary', function () {
+    // New file in the editor makes a doc whatever the extension, while csv is
+    // not a text extension: only the existing doc keeps it editable
+    login(owner)
+    cy.visit('/project')
+    requestWithCsrf('POST', `/project/${projectId}/doc`, { name: 'data.csv' })
+      .its('status')
+      .should('equal', 200)
+    const dir = workingCopy('csv-doc')
+    createGitToken().then(token => {
+      gitClone(projectId, token, dir)
+      gitCommitAndPush(dir, 'data.csv', 'x,y\n1,2', 'Edit the data')
+        .its('exitCode')
+        .should('equal', 0)
+    })
+    projectEntities(projectId).should('deep.include', {
+      path: '/data.csv',
+      type: 'doc',
+    })
+  })
+
   it('renames and deletes files pushed through git', function () {
     login(owner)
     const dir = workingCopy('rename')
