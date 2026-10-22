@@ -16,6 +16,27 @@
   <a href="#license">License</a>
 </p>
 
+<p align="center">
+  <b>English</b> ·
+  <a href="doc/README-CS.md">Čeština</a> ·
+  <a href="doc/README-DA.md">Dansk</a> ·
+  <a href="doc/README-DE.md">Deutsch</a> ·
+  <a href="doc/README-ES.md">Español</a> ·
+  <a href="doc/README-FI.md">Suomi</a> ·
+  <a href="doc/README-FR.md">Français</a> ·
+  <a href="doc/README-IT.md">Italiano</a> ·
+  <a href="doc/README-JP.md">日本語</a> ·
+  <a href="doc/README-KR.md">한국어</a> ·
+  <a href="doc/README-NL.md">Nederlands</a> ·
+  <a href="doc/README-NO.md">Norsk</a> ·
+  <a href="doc/README-PL.md">Polski</a> ·
+  <a href="doc/README-PT.md">Português</a> ·
+  <a href="doc/README-RU.md">Русский</a> ·
+  <a href="doc/README-SV.md">Svenska</a> ·
+  <a href="doc/README-TR.md">Türkçe</a> ·
+  <a href="doc/README-ZH.md">简体中文</a>
+</p>
+
 <img src="doc/screenshot-pro.png" alt="A screenshot of a project being edited in Overleaf Community Edition">
 <p align="center">
   Figure 1: A screenshot of a project being edited in Ayakaleaf Pro Edition.
