@@ -54,7 +54,9 @@ One folder per module in `toolkit/suites/`, named and nested like
   resolve, re-open), the Overview tab listing the comments of docs that are
   not loaded in the document-updater (a copied project), the authors of
   tracked changes not saved to docstore yet, and which routes owners, editors,
-  reviewers, viewers, link viewers and other users may call.
+  reviewers, viewers, link viewers and other users may call. The
+  `anonymous-sharing/` variant lets a signed-out editor through the edit link
+  delete threads, and refuses resolving and reopening them.
 - `git-bridge/` – git tokens in the settings, cloning, pushing and pulling
   with the git CLI: binary files, folders, renames, deletes, out-of-date
   pushes, and access for invited and link-shared editors, reviewers and

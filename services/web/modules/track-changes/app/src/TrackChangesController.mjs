@@ -137,7 +137,7 @@ const TrackChangesController = {
     try {
       const { project_id, doc_id, thread_id } = req.params
       const user_id = SessionManager.getLoggedInUserId(req.session)
-      if (!user_id) throw new Error('no logged-in user')
+      if (!user_id) return HttpErrorHandler.forbidden(req, res)
       const user = await UserInfoManager.promises.getPersonalInfo(user_id)
       await ChatApiHandler.promises.resolveThread(project_id, thread_id, user_id)
       EditorRealTimeController.emitToRoom(
@@ -156,7 +156,7 @@ const TrackChangesController = {
     try {
       const { project_id, doc_id, thread_id } = req.params
       const user_id = SessionManager.getLoggedInUserId(req.session)
-      if (!user_id) throw new Error('no logged-in user')
+      if (!user_id) return HttpErrorHandler.forbidden(req, res)
       await ChatApiHandler.promises.reopenThread(project_id, thread_id)
       EditorRealTimeController.emitToRoom(project_id, 'reopen-thread', thread_id)
       await DocumentUpdaterHandler.promises.reopenThread(project_id, doc_id, thread_id, user_id)
@@ -168,8 +168,8 @@ const TrackChangesController = {
   async deleteThread(req, res, next) {
     try {
       const { project_id, doc_id, thread_id } = req.params
-      const user_id = SessionManager.getLoggedInUserId(req.session)
-      if (!user_id) throw new Error('no logged-in user')
+      // signed-out editors (link sharing) have no id; document-updater rejects null
+      const user_id = SessionManager.getLoggedInUserId(req.session) ?? undefined
       await ChatApiHandler.promises.deleteThread(project_id, thread_id)
       EditorRealTimeController.emitToRoom(project_id, 'delete-thread', thread_id)
       await DocumentUpdaterHandler.promises.deleteThread(project_id, doc_id, thread_id, user_id)
