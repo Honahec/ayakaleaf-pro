@@ -445,7 +445,8 @@ async function processSnapshotPush(projectId, files, postbackUrl, userId) {
         )
         logger.debug({ projectId, path }, 'Deleted file from project')
       } catch (err) {
-        logger.warn({ err, projectId, path }, 'Failed to delete file')
+        // already gone in Overleaf
+        if (!(err instanceof Errors.NotFoundError)) throw err
       }
     }
 
