@@ -20,13 +20,13 @@ set +a
 docker compose up -d authentik-postgresql authentik-server authentik-worker
 
 function api() {
-  docker exec sharelatex curl -sf -H "Authorization: Bearer $AUTHENTIK_BOOTSTRAP_TOKEN" \
+  docker exec "${CONTAINER_PREFIX:-}sharelatex" curl -sf -H "Authorization: Bearer $AUTHENTIK_BOOTSTRAP_TOKEN" \
     "http://authentik:9000/api/v3/$1"
 }
 
 echo "Waiting for authentik..."
 for _ in $(seq 120); do
-  docker exec sharelatex curl -sf -o /dev/null http://authentik:9000/-/health/ready/ && break
+  docker exec "${CONTAINER_PREFIX:-}sharelatex" curl -sf -o /dev/null http://authentik:9000/-/health/ready/ && break
   sleep 3
 done
 
@@ -54,7 +54,7 @@ docker compose --profile ldap up -d authentik-ldap
 
 echo "Waiting for the LDAP outpost..."
 for _ in $(seq 60); do
-  docker exec sharelatex bash -c 'echo > /dev/tcp/authentik-ldap/3389' 2>/dev/null && break
+  docker exec "${CONTAINER_PREFIX:-}sharelatex" bash -c 'echo > /dev/tcp/authentik-ldap/3389' 2>/dev/null && break
   sleep 2
 done
 echo "authentik is up"

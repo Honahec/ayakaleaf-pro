@@ -66,7 +66,7 @@ function exportFromEditor(
 
 // One file of a downloaded zip archive, as text.
 function unzipped(archive: string, fileName: string) {
-  const path = `cypress/downloads/${uuid()}.zip`
+  const path = `${Cypress.config('downloadsFolder')}/${uuid()}.zip`
   cy.writeFile(path, archive, 'binary')
   return cy.exec(`unzip -p ${path} ${fileName}`).its('stdout')
 }

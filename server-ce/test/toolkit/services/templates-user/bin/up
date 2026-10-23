@@ -13,10 +13,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 email=templates@example.com
 
-docker exec sharelatex bash -ce \
+docker exec "${CONTAINER_PREFIX:-}sharelatex" bash -ce \
   "cd /overleaf/services/web && node modules/server-ce-scripts/scripts/create-user.mjs --email=$email" \
   >/dev/null
-id=$(docker exec mongo mongosh sharelatex --quiet \
+id=$(docker exec "${CONTAINER_PREFIX:-}mongo" mongosh sharelatex --quiet \
   --eval "db.users.findOne({ email: '$email' })._id.toString()")
 ../../bin/apply-config "$TOOLKIT_DIR/config/variables.env" \
   <(echo "OVERLEAF_TEMPLATES_USER_ID=$id")

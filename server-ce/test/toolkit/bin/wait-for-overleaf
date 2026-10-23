@@ -8,12 +8,12 @@ timeout=$1
 
 echo "Waiting for Overleaf to start..."
 for _ in $(seq "$timeout"); do
-  if docker exec sharelatex curl -fsS http://localhost/status >/dev/null 2>&1; then
+  if docker exec "${CONTAINER_PREFIX:-}sharelatex" curl -fsS http://localhost/status >/dev/null 2>&1; then
     echo "Overleaf is up"
     exit 0
   fi
   sleep 1
 done
 echo "Overleaf did not start within ${timeout}s"
-docker logs --tail 100 sharelatex
+docker logs --tail 100 "${CONTAINER_PREFIX:-}sharelatex"
 exit 1

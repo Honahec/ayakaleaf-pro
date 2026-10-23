@@ -1,7 +1,7 @@
 # goauthentik as OIDC, SAML and LDAP identity provider for the e2e suites.
 # It joins the toolkit's network, so the sharelatex container and the browser
 # in the Cypress container both reach it as http://authentik:9000.
-name: e2e-authentik
+name: ${CONTAINER_PREFIX:-e2e-}authentik
 
 x-authentik: &authentik
   image: ghcr.io/goauthentik/server:2026.8.3

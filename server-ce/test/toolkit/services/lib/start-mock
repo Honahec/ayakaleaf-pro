@@ -21,7 +21,7 @@ for host in "$@"; do
   aliases+=(--network-alias "$host")
 done
 
-docker run --detach --name "e2e-$name" \
+docker run --detach --name "${CONTAINER_PREFIX:-e2e-}$name" \
   --network "$TOOLKIT_NETWORK" \
   "${aliases[@]}" \
   --cap-add NET_ADMIN \
@@ -33,11 +33,11 @@ docker run --detach --name "e2e-$name" \
 
 echo "Waiting for $name..."
 for _ in $(seq 30); do
-  docker exec sharelatex curl -sf -o /dev/null -X POST "http://$name:8080/_mock/reset" && break
+  docker exec "${CONTAINER_PREFIX:-}sharelatex" curl -sf -o /dev/null -X POST "http://$name:8080/_mock/reset" && break
   sleep 1
 done
 # Any answer over TLS will do, it shows the alias and the certificate work
-docker exec sharelatex curl -s -o /dev/null "https://$1/" \
+docker exec "${CONTAINER_PREFIX:-}sharelatex" curl -s -o /dev/null "https://$1/" \
   --cacert "/var/lib/overleaf/certs/$name-ca.pem" \
   || { echo "$name is not reachable as $1" >&2; exit 1; }
 echo "$name is up"
