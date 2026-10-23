@@ -1,6 +1,8 @@
 # ---------------------------------
 # This workflow is used to compute the OpenSSF criticality score
-# of this repository with the built-in GITHUB_TOKEN
+# of this repository with the built-in GITHUB_TOKEN, and to write
+# project statistics (stars, pull requests, issues, outside contributors)
+# to the run summary
 #
 # See:
 #     https://github.com/ossf/criticality_score
@@ -14,6 +16,7 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+  discussions: read
 
 jobs:
   criticality-score:
@@ -35,4 +38,71 @@ jobs:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: |
           # The deps.dev BigQuery dataset is no longer available, skip it
-          criticality_score -depsdev-disable -format json https://github.com/${{github.repository}}
+          criticality_score -depsdev-disable -format json -out criticality.json https://github.com/${{github.repository}}
+          cat criticality.json
+      - name: "Write project statistics to the summary"
+        env:
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          REPO: ${{github.repository}}
+        run: |
+          owner=${REPO%/*} name=${REPO#*/}
+          gh api "repos/$REPO" > meta.json
+          for kind in pullRequests issues; do
+            gh api graphql --paginate -F owner="$owner" -F name="$name" -f query="
+              query(\$owner: String!, \$name: String!, \$endCursor: String) {
+                repository(owner: \$owner, name: \$name) {
+                  $kind(first: 100, after: \$endCursor) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes { state createdAt authorAssociation author { __typename login } }
+                  }
+                }
+              }" --jq ".data.repository.$kind.nodes[] | {kind: \"$kind\"} + ."
+          done > threads.json
+          gh api graphql -F owner="$owner" -F name="$name" -f query='
+            query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                discussions { totalCount }
+                releases(first: 1, orderBy: {field: CREATED_AT, direction: DESC}) { totalCount nodes { tagName createdAt } }
+              }
+            }' --jq '.data.repository' > repo.json
+
+          # Outside: anyone GitHub does not show as an owner, member or collaborator; bots and deleted accounts are left out
+          jq -rn --slurpfile meta meta.json --slurpfile threads threads.json \
+            --slurpfile repo repo.json --slurpfile crit criticality.json '
+            def count($kind; $state): [$threads[] | select(.kind == $kind and .state == $state)] | length;
+            $meta[0] as $m | $repo[0] as $r | $crit[0] as $c |
+            [$threads[] | select(.author.__typename == "User" and (.authorAssociation | IN("OWNER", "MEMBER", "COLLABORATOR") | not))]
+            | group_by(.author.login)
+            | map({
+                login: .[0].author.login,
+                prs: map(select(.kind == "pullRequests")) | length,
+                merged: map(select(.state == "MERGED")) | length,
+                issues: map(select(.kind == "issues")) | length,
+                first: map(.createdAt) | min | .[0:10]
+              })
+            | sort_by(-.merged, -.prs, -.issues, .first) as $people |
+            "## Project statistics", "",
+            "| Item | Value |", "|---|---|",
+            "| Stars / forks / watching | \($m.stargazers_count) / \($m.forks_count) / \($m.subscribers_count) |",
+            "| Outside participants | \($people | length) people opened issues or pull requests |",
+            "| Outside pull request authors | \($people | map(select(.prs > 0)) | length), of whom \($people | map(select(.merged > 0)) | length) had one merged |",
+            "| Pull requests | \(count("pullRequests"; "MERGED")) merged · \(count("pullRequests"; "CLOSED")) closed unmerged · \(count("pullRequests"; "OPEN")) open |",
+            "| Issues | \(count("issues"; "OPEN")) open · \(count("issues"; "CLOSED")) closed |",
+            "| Discussions | \($r.discussions.totalCount) |",
+            "| Releases | \($r.releases.totalCount), latest \($r.releases.nodes[0].tagName) (\($r.releases.nodes[0].createdAt[0:10])) |",
+            "| Commits per week | \($c.legacy.commit_frequency) over the last 12 months, last push \($m.pushed_at[0:10]) |",
+            "| OpenSSF criticality score | \($c.default_score) |",
+            "| License | \($m.license.spdx_id) |",
+            "| Created on GitHub | \($m.created_at[0:10]) |",
+            "",
+            "<details><summary>Outside contributors</summary>", "",
+            "| User | Pull requests | Merged | Issues | First seen |", "|---|---|---|---|---|",
+            ($people[] | "| [\(.login)](https://github.com/\(.login)) | \(.prs) | \(.merged) | \(.issues) | \(.first) |"),
+            "", "</details>", "",
+            "<details><summary>OpenSSF signals</summary>", "",
+            "| Signal | Value |", "|---|---|",
+            ($c.legacy | to_entries[] | "| \(.key) | \(.value) |"),
+            "",
+            "`created_since` and `contributor_count` include the Overleaf history this repository carries.",
+            "", "</details>"
+          ' >> "$GITHUB_STEP_SUMMARY"
