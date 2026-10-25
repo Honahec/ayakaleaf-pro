@@ -14,16 +14,21 @@ const OIDCAuthenticationManager = {
       updateUserDetailsOnLogin,
       providerId,
     } = Settings.oidc
-    const email = profile.emails[0].value
-    const oidcUserId = (attUserId === 'email') ? email : profile[attUserId]
+    // Lowercase like LDAP and SAML; the OIDC id and the admin match keep the
+    // email as sent, so existing links and settings still match
+    const email = profile.emails[0].value.toLowerCase()
+    const oidcUserId = (attUserId === 'email') ? profile.emails[0].value : profile[attUserId]
     const firstName = profile.name?.givenName || ""
     const lastName  = profile.name?.familyName || ""
     let isAdmin = false
     if (attAdmin && valAdmin) {
       if (attAdmin === 'email') {
-        isAdmin = (email === valAdmin)
+        isAdmin = (profile.emails[0].value === valAdmin)
       } else {
-        isAdmin = (profile[attAdmin] === valAdmin)
+        const adminClaim = profile[attAdmin] ?? profile._json?.[attAdmin]
+        isAdmin = Array.isArray(adminClaim)
+          ? adminClaim.includes(valAdmin)
+          : adminClaim === valAdmin
       }
     }
     const oidcUserData = null // Possibly it can be used later

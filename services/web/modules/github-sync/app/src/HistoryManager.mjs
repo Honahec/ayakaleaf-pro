@@ -1,5 +1,4 @@
 import Settings from '@overleaf/settings'
-import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
 import { fetchJson, fetchStream } from '@overleaf/fetch-utils'
 import HistoryManager from '../../../../app/src/Features/History/HistoryManager.mjs'
@@ -14,6 +13,17 @@ async function latestVersion(projectId) {
     return json.version
   } catch (err) {
     throw OError.tag(err, 'Failed to get the latest project version from history', { projectId })
+  }
+}
+
+// latest summarized updates, newest first: [{ fromV, toV, meta: { origin } }]
+async function getUpdates(projectId) {
+  const url = `${urlBase}/${projectId}/updates`
+  try {
+    const json = await fetchJson(url)
+    return json.updates
+  } catch (err) {
+    throw OError.tag(err, 'Failed to get the project updates from history', { projectId })
   }
 }
 
@@ -90,6 +100,7 @@ async function _streamToBase64(stream) {
 
 export default {
   latestVersion,
+  getUpdates,
   getPathsAtVersion,
   getProjectSnapshot,
   getProjectFileBuffer,

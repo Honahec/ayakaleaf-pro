@@ -5,6 +5,7 @@ import Docker from 'dockerode'
 import crypto from 'node:crypto'
 import async from 'async'
 import LockManager from './DockerLockManager.js'
+import { getLastProjectAccessTime } from './LastProjectAccess.js'
 import Path from 'node:path'
 import _ from 'lodash'
 
@@ -42,9 +43,11 @@ const DockerRunner = {
       return callback(new Error('image not allowed'))
     }
 
-    if (Settings.texliveImageNameOveride != null) {
-      const img = image.split('/')
-      image = `${Settings.texliveImageNameOveride}/${img[2]}`
+    if (
+      Settings.texliveImageNameOveride != null &&
+      !['conversions', 'png2pdf'].includes(compileGroup)
+    ) {
+      image = `${Settings.texliveImageNameOveride}/${Path.basename(image)}`
     }
 
     if (compileGroup === 'synctex-output') {
@@ -55,6 +58,14 @@ const DockerRunner = {
       directory = Path.join(
         Settings.path.sandboxedCompilesHostDirOutput,
         ...directory.split('/').slice(-3)
+      )
+    } else if (compileGroup === 'png2pdf') {
+      // In:   directory = '/overleaf/services/clsi/cache/projectId'
+      //  sandboxedCompilesHostDirCache = '/host/cache'
+      // Out:                    directory = '/host/cache/projectId'
+      directory = Path.join(
+        Settings.path.sandboxedCompilesHostDirCache,
+        Path.basename(directory)
       )
     } else {
       // In:   directory = '/overleaf/services/clsi/compiles/projectId-userId'
@@ -561,6 +572,16 @@ const DockerRunner = {
       for (const container of containers) {
         const { name, id, ttl } = DockerRunner.examineOldContainer(container)
         if (name.slice(0, 9) === '/project-' && ttl <= 0) {
+          // containers are reused across compiles, keep those of projects
+          // compiled within MAX_CONTAINER_AGE
+          const projectId = name.match(/^\/project-([a-f0-9]{24})-/)?.[1]
+          if (
+            projectId &&
+            getLastProjectAccessTime(projectId) >
+              Date.now() - DockerRunner.MAX_CONTAINER_AGE
+          ) {
+            continue
+          }
           // strip the / prefix
           // the LockManager uses the plain container name
           const plainName = name.slice(1)

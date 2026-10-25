@@ -10,6 +10,7 @@ import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mj
 import ProjectUploadManager from '../../../../app/src/Features/Uploads/ProjectUploadManager.mjs'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
+import { SizeLimitedStream } from '../../../../app/src/infrastructure/FileWriter.mjs'
 import api from './GitHubApiClient.mjs'
 import SyncStateManager from './SyncStateManager.mjs'
 import HistoryManager from './HistoryManager.mjs'
@@ -150,7 +151,7 @@ async function importRepo(userId, projectName, repoFullName, defaultBranchName) 
 
   try {
     const stream = await api.getRepoZipball(token, repoFullName, defaultBranchHead)
-    await pipeline(stream, fs.createWriteStream(fsPath))
+    await pipeline(stream, new SizeLimitedStream({ maxSizeBytes: Settings.maxUploadSize }), fs.createWriteStream(fsPath))
 
     const { project } = await ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
       userId,
@@ -166,7 +167,7 @@ async function importRepo(userId, projectName, repoFullName, defaultBranchName) 
       { userId, projectName, repoFullName, defaultBranchName, fsPath }
     )
   } finally {
-    fs.promises.rm(fsPath, { force: true }).catch(() => {})
+    await fs.promises.rm(fsPath, { force: true }).catch(() => {})
   }
 
   try {
@@ -190,6 +191,12 @@ async function importRepo(userId, projectName, repoFullName, defaultBranchName) 
 }
 
 async function exportProject(userId, projectId, repoOptions) {
+  // only the owner may link the project, as the UI shows
+  const { owner_ref } = await ProjectGetter.promises.getProject(projectId, { owner_ref: 1 })
+  if (owner_ref.toString() !== userId) {
+    throw new PermissionDeniedError('Only the project owner can export', { projectId, status: 403 })
+  }
+
   const isLinked = await SyncStateManager.getProjectState(projectId)
   if (isLinked) {
     throw new OError('Project is already linked to Git server', { projectId })

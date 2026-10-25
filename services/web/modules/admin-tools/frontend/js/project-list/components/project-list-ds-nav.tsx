@@ -15,7 +15,6 @@ import DefaultNavbar from '@/shared/components/navbar/default-navbar'
 import Footer from '@/shared/components/footer/footer'
 import SidebarDsNav from './sidebar/sidebar-ds-nav'
 import overleafLogo from '@/shared/svgs/overleaf-a-ds-solution-mallard.svg'
-import { getUserName } from '../util/user'
 import { useProjectListContext } from '../context/project-list-context'
 import { useUserIdentityContext } from '../../user-list/context/user-identity-context'
 
@@ -35,7 +34,7 @@ export function ProjectListDsNav() {
   } = useProjectListContext()
   const { getUserNameById } = useUserIdentityContext()
 
-  const userName = projectsOwnerId ? getUserNameById(projectsOwnerId) : t('all_users')
+  const userName = projectsOwnerId ? getUserNameById(projectsOwnerId) : t('all')
   const tableTopArea = (
     <div className="pt-2 pb-3 d-md-none d-flex gap-3">
       <div className="pt-1 fs-5 fw-bold" translate="no">

@@ -4,6 +4,8 @@ import Settings from '@overleaf/settings'
 import OError from '@overleaf/o-error'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
+  CustomHttpAgent,
+  CustomHttpsAgent,
   fetchJson,
   fetchNothing,
   fetchString,
@@ -18,6 +20,7 @@ const ZOTERO_API_URL = 'https://api.zotero.org'
 const ZOTERO_OAUTH_REQUEST_URL = 'https://www.zotero.org/oauth/request'
 const ZOTERO_OAUTH_AUTHORIZE_URL = 'https://www.zotero.org/oauth/authorize'
 const ZOTERO_OAUTH_ACCESS_URL = 'https://www.zotero.org/oauth/access'
+const REQUEST_TIMEOUT_MS = 60 * 1000
 
 // Route the module's server-side Zotero requests through an HTTP proxy when
 // ZOTERO_PROXY_URL is set (mirrors the github-sync module's proxy support).
@@ -25,8 +28,19 @@ const zoteroProxyAgent = process.env.ZOTERO_PROXY_URL
   ? new HttpsProxyAgent(process.env.ZOTERO_PROXY_URL)
   : undefined
 
+// fetch-utils' default agent gives up connecting after 1s, too short for
+// external APIs, so direct requests get a 3s connect timeout instead
+const MAX_CONNECT_TIME = 3000
+const httpAgent = new CustomHttpAgent({ connectTimeout: MAX_CONNECT_TIME })
+const httpsAgent = new CustomHttpsAgent({ connectTimeout: MAX_CONNECT_TIME })
+
 function withProxy(options) {
-  return zoteroProxyAgent ? { ...options, agent: zoteroProxyAgent } : options
+  return {
+    ...options,
+    agent:
+      zoteroProxyAgent ||
+      (url => (url.protocol === 'https:' ? httpsAgent : httpAgent)),
+  }
 }
 
 /**
@@ -75,7 +89,13 @@ async function getGroupsForUser(userId) {
     `/users/${zoteroUserId}/groups`
   )
   try {
-    const groups = await fetchJson(url, withProxy({ headers }))
+    const groups = await fetchJson(
+      url,
+      withProxy({
+        headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+    )
     return groups.map(g => ({
       id: String(g.id),
       name: g.data?.name || `Group ${g.id}`,
@@ -129,9 +149,17 @@ async function _fetchBibtex(apiKey, basePath) {
     })
     const fullUrl = `${url}?format=bibtex&limit=${limit}&start=${start}`
     try {
-      const { body: bibtex, response } = await fetchStringWithResponse(
+      const { body, response } = await fetchStringWithResponse(
         fullUrl,
-        withProxy({ headers })
+        withProxy({
+          headers,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        })
+      )
+      // Zotero exports attachments and notes as empty @misc entries
+      const bibtex = body.replace(
+        /^@misc\{noauthor_notitle_nodate(?:-\d+)?,\r?\n\}\r?\n*/gm,
+        ''
       )
       if (bibtex.trim()) {
         allBibtex += bibtex + '\n'
@@ -155,29 +183,6 @@ async function _fetchBibtex(apiKey, basePath) {
     }
   }
   return allBibtex
-}
-
-/**
- * Validate a Zotero API key by calling /keys/{key}.
- * Returns { zoteroUserId } on success, throws on failure.
- */
-async function validateApiKey(apiKey) {
-  const url = `${ZOTERO_API_URL}/keys/${encodeURIComponent(apiKey)}`
-  try {
-    const data = await fetchJson(
-      url,
-      withProxy({ headers: { 'Zotero-API-Version': '3' } })
-    )
-    if (!data.userID) {
-      throw new Error('Zotero API key response missing userID')
-    }
-    return { zoteroUserId: String(data.userID) }
-  } catch (err) {
-    if (err.response?.status === 404 || err.response?.status === 403) {
-      throw new ZoteroForbiddenError('Invalid Zotero API key')
-    }
-    throw OError.tag(err, 'error validating Zotero API key')
-  }
 }
 
 // ---- Zotero OAuth 1.0a ----------------------------------------------------
@@ -239,6 +244,7 @@ async function getOAuthRequestToken() {
     withProxy({
       method: 'POST',
       headers: { Authorization: authHeader },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   )
   const parsed = new URLSearchParams(body)
@@ -278,6 +284,7 @@ async function exchangeOAuthAccessToken(requestToken, requestTokenSecret, verifi
     withProxy({
       method: 'POST',
       headers: { Authorization: authHeader },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   )
   const parsed = new URLSearchParams(body)
@@ -297,10 +304,22 @@ async function storeCredentials(userId, apiKey, zoteroUserId) {
     apiKey,
     zoteroUserId: String(zoteroUserId),
   })
-  await User.updateOne(
+  const previous = await User.findOneAndUpdate(
     { _id: userId },
-    { $set: { 'refProviders.zotero': { apiKeyEncrypted } } }
+    { $set: { 'refProviders.zotero': { apiKeyEncrypted } } },
+    { projection: { 'refProviders.zotero': 1 } }
   ).exec()
+  // linking again (e.g. another account) replaces the key: revoke the old
+  // one, fire-and-forget
+  const previousEncrypted = previous?.refProviders?.zotero?.apiKeyEncrypted
+  if (previousEncrypted) {
+    AccessTokenEncryptor.promises
+      .decryptToJson(previousEncrypted)
+      .then(old => revokeApiKey(old.apiKey))
+      .catch(err => {
+        logger.warn({ err, userId }, 'failed to revoke replaced Zotero API key')
+      })
+  }
 }
 
 /**
@@ -315,6 +334,7 @@ async function revokeApiKey(apiKey) {
     withProxy({
       method: 'DELETE',
       headers: { 'Zotero-API-Version': '3', 'Zotero-API-Key': apiKey },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   )
 }
@@ -356,7 +376,6 @@ export default {
   getGroupsForUser,
   getUserLibraryBibtex,
   getGroupLibraryBibtex,
-  validateApiKey,
   getOAuthRequestToken,
   getOAuthAuthorizeUrl,
   exchangeOAuthAccessToken,

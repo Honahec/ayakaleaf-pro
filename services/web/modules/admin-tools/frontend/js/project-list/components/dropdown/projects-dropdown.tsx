@@ -6,7 +6,6 @@ import {
 } from '../../context/project-list-context'
 import {
   OLDropdown as Dropdown,
-  OLDropdownHeader as DropdownHeader,
   OLDropdownItem as DropdownItem,
   OLDropdownMenu as DropdownMenu,
   OLDropdownToggle as DropdownToggle,
@@ -64,7 +63,7 @@ function ProjectsDropdown() {
         id="projects-types-dropdown-toggle-btn"
         className="ps-0 mb-0 btn-transparent h4"
         size="lg"
-        aria-label={t('filter_projects')}
+        aria-label={t('filters')}
       >
         <span className="text-truncate" aria-hidden>
           {title}

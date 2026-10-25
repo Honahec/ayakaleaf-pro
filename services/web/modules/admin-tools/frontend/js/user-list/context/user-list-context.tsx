@@ -127,10 +127,10 @@ export function UserListProvider({ children }: UserListProviderProps) {
       suspended: t('disabled'),
       inactive: t('inactive'),
       deleted: t('deleted_user'),
-      local: t('local'),
+      local: t('password'),
       ldap: t('ldap'),
       saml: t('saml'),
-      oidc: t('oidc'),
+      oidc: 'OIDC',
     }
     return new Map(filterKeys.map(key => [key, capitalize(labels[key])]))
   }, [t])
@@ -311,6 +311,9 @@ export function UserListProvider({ children }: UserListProviderProps) {
   }, [])
 
   const removeUserFromView = useCallback((user: User) => {
+    setSearchResults(users =>
+      users?.filter(u => u.id !== user.id) ?? null
+    )
     setLoadedUsers(loadedUsers => {
       return loadedUsers.filter(u => u.id !== user.id)
     })

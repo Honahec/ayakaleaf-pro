@@ -200,6 +200,15 @@ module.exports = {
       url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
       pubUrl: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
     },
+    // Dropbox sync; without a url, nothing is sent (TpdsUpdateSender)
+    thirdPartyDataStore: {
+      url:
+        process.env.DROPBOX_ENABLED?.toLowerCase() === 'true'
+          ? `http://${process.env.TPDS_HOST || '127.0.0.1'}:3002`
+          : undefined,
+      // the app folder in Dropbox is Apps/<name of the Dropbox app>
+      dropboxAppName: process.env.DROPBOX_APP_NAME,
+    },
     chat: {
       internal_url: `http://${process.env.CHAT_HOST || '127.0.0.1'}:3010`,
     },
@@ -398,7 +407,7 @@ module.exports = {
     compileGroup: 'standard',
     references: true,
     trackChanges: true,
-    offlineMode: false,
+    offlineMode: true,
   }),
 
   // featuresEpoch: 'YYYY-MM-DD',
@@ -1106,6 +1115,18 @@ module.exports = {
         __dirname,
         '../modules/github-sync/frontend/js/components/github-sync-widget.tsx'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/gitlab-sync/frontend/js/components/gitlab-sync-widget.tsx'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/gitea-sync/frontend/js/components/gitea-sync-widget.tsx'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/dropbox/frontend/js/components/dropbox-sync-widget.tsx'
+      ),
     ],
     referenceLinkingWidgets: [
       Path.resolve(
@@ -1127,6 +1148,30 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/github-sync/frontend/js/components/import-from-github-menu.tsx'
+      ),
+    ],
+    importProjectFromGitlabModalWrapper: [
+      Path.resolve(
+        __dirname,
+        '../modules/gitlab-sync/frontend/js/components/import-from-gitlab-modal-wrapper.tsx'
+      ),
+    ],
+    importProjectFromGitlabMenu: [
+      Path.resolve(
+        __dirname,
+        '../modules/gitlab-sync/frontend/js/components/import-from-gitlab-menu.tsx'
+      ),
+    ],
+    importProjectFromGiteaModalWrapper: [
+      Path.resolve(
+        __dirname,
+        '../modules/gitea-sync/frontend/js/components/import-from-gitea-modal-wrapper.tsx'
+      ),
+    ],
+    importProjectFromGiteaMenu: [
+      Path.resolve(
+        __dirname,
+        '../modules/gitea-sync/frontend/js/components/import-from-gitea-menu.tsx'
       ),
     ],
     editorLeftMenuSync: [
@@ -1212,7 +1257,23 @@ module.exports = {
       ),
       Path.resolve(
         __dirname,
+        '../modules/mcp-server/frontend/js/components/mcp-integration-card.tsx'
+      ),
+      Path.resolve(
+        __dirname,
         '../modules/github-sync/frontend/js/components/github-integration-card.tsx'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/gitlab-sync/frontend/js/components/gitlab-integration-card.tsx'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/gitea-sync/frontend/js/components/gitea-integration-card.tsx'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/dropbox/frontend/js/components/dropbox-integration-card.tsx'
       ),
       Path.resolve(
         __dirname,
@@ -1262,7 +1323,11 @@ module.exports = {
     'oauth2-server',
     'reference-picker',
     'git-bridge',
+    'mcp-server',
     'github-sync',
+    'gitlab-sync',
+    'gitea-sync',
+    'dropbox',
     'tpr-webmodule',
     'workbench',
     'error-assistant',
@@ -1313,7 +1378,8 @@ module.exports.splitTestOverrides = {
   'import-markdown': 'enabled',
   'export-docx': 'enabled',
   'export-markdown': 'enabled',
-  'export-html': 'enabled'
+  'export-html': 'enabled',
+  'intermittent-connection-improvements': 'enabled'
 }
 
 module.exports.oauthProviders = {

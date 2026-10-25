@@ -2,13 +2,14 @@ import { expressify } from '@overleaf/promise-utils'
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
+import { FileTooLargeError } from '../../../../app/src/Features/Errors/Errors.js'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import Csrf from '../../../../app/src/infrastructure/Csrf.mjs'
 import GitHubSyncHandler from './GitHubSyncHandler.mjs'
 import TokenManager from './TokenManager.mjs'
 import api from './GitHubApiClient.mjs'
 import { doGitMerge } from './GitMerge.mjs'
-import { InvalidTokenError, GitNotLinkedError } from './GitSyncErrors.mjs'
+import { InvalidTokenError } from './GitSyncErrors.mjs'
 
 async function getConnectionStatus(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
@@ -91,6 +92,9 @@ async function importRepo(req, res) {
     res.json({ projectId })
   } catch (error) {
     logger.error({ error, userId }, 'Failed to import git repository from server')
+    if (error instanceof FileTooLargeError) {
+      return res.status(422).json({ message: req.i18n.translate('file_too_large') })
+    }
     res.status(error.status || 500).json({ message: error.message })
   }
 }
@@ -155,7 +159,7 @@ async function unlink(req, res) {
     const info = OError.getFullInfo(err)
     const errStatus  = info?.status || 500
     logger.error(OError.getFullStack(err))
-    logger.error({ info, projectId }, 'Error removing user credentials')
+    logger.error({ info, userId }, 'Error removing user credentials')
     return res.status(errStatus).json({ message: err.message })
   }
   res.sendStatus(200)

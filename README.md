@@ -16,6 +16,27 @@
   <a href="#license">License</a>
 </p>
 
+<p align="center">
+  <b>English</b> ·
+  <a href="doc/README-CS.md">Čeština</a> ·
+  <a href="doc/README-DA.md">Dansk</a> ·
+  <a href="doc/README-DE.md">Deutsch</a> ·
+  <a href="doc/README-ES.md">Español</a> ·
+  <a href="doc/README-FI.md">Suomi</a> ·
+  <a href="doc/README-FR.md">Français</a> ·
+  <a href="doc/README-IT.md">Italiano</a> ·
+  <a href="doc/README-JP.md">日本語</a> ·
+  <a href="doc/README-KR.md">한국어</a> ·
+  <a href="doc/README-NL.md">Nederlands</a> ·
+  <a href="doc/README-NO.md">Norsk</a> ·
+  <a href="doc/README-PL.md">Polski</a> ·
+  <a href="doc/README-PT.md">Português</a> ·
+  <a href="doc/README-RU.md">Русский</a> ·
+  <a href="doc/README-SV.md">Svenska</a> ·
+  <a href="doc/README-TR.md">Türkçe</a> ·
+  <a href="doc/README-ZH.md">简体中文</a>
+</p>
+
 <img src="doc/screenshot-pro.png" alt="A screenshot of a project being edited in Overleaf Community Edition">
 <p align="center">
   Figure 1: A screenshot of a project being edited in Ayakaleaf Pro Edition.
@@ -24,15 +45,19 @@
 ## Ayakaleaf Pro Edition
 Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and capabilities. For details, please check [Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space) page. Features in Ayakaleaf Pro include: 
 
-- AI Chat Assistant (Features in SaaS Platform)
-- Error Assistant (Features in SaaS Platform)
-- Pandoc Import/Export (Features in SaaS Platform)
-- Python Script Runner (Features in SaaS Platform)
-- 2-way GitHub Sync (Features in SaaS Platform)
+- 2-way Dropbox Sync (Keep All Your Projects in Sync with Dropbox)
+- MCP Server (Let AI Agents Edit, Compile and Comment)
+- AI Chat Assistant (Chat, Edit and Fix with AI)
+- Error Assistant (Explain and Fix Compile Errors)
+- Pandoc Import/Export (Convert Word, Markdown and LaTeX)
+- Python Script Runner (Run Python in Your Project)
+- 2-way GitHub(Enterprise) Sync (Push and Pull with GitHub)
+- 2-way GitLab Sync (GitLab.com or Self-hosted GitLab)
+- 2-way Gitea Sync (Gitea.com or Self-hosted Gitea)
 - Zotero Integration(With Zotero OAuth Support)
 - Mendeley Integration(With Mendeley OAuth Support)
-- Advanced Reference Search (Features in SaaS Platform)
-- Git-Bridge Support (Features in Server Pro)
+- Advanced Reference Search (Search All Your Bib Entries)
+- Git-Bridge Support (Clone, Pull and Push with Git)
 - Admin Panel (Global Users/Projects management)
 - SSO with LDAP and SAML or OAuth 2.0
 - Unlimited Compile Times (Adjustable in admin panel)
@@ -41,7 +66,8 @@ Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and ca
 - Template System (With Template Gallery)
 - Track Changes (With Review and Comment Panel)
 - Full Project History(With Restore and Download)
-- Symbol Palette (Features in Server Pro/SaaS Platform)
+- Symbol Palette (Insert Math Symbols in One Click)
+- Full i18n Translation (Every UI String in 18 Languages)
 - ARM Support(x86_64/arm64 on Docker)
 
 Last but not least, Ayakaleaf Pro is open-source, free to use and modify. You can self-host it and contribute to the development of Ayakaleaf Pro. For more details, please check [Developer Documentation](https://ayakaleaf-pro.ayaka.space/dev) page.
@@ -87,7 +113,7 @@ OIDC uses the callback `${OVERLEAF_SITE_URL}/oidc/login/callback`. The `passport
 
 ## Upgrading
 
-If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/overleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
+If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/ayakaleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
 
 ## Translations
 
@@ -117,6 +143,7 @@ The code in this repository is released under the GNU AFFERO GENERAL PUBLIC LICE
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Sponsor
+- [Linux Do Community](https://linux.do)
 - [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
 - [GitBook](https://www.gitbook.com/)
 

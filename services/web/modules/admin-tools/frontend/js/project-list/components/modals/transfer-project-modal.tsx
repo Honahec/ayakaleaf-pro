@@ -5,14 +5,8 @@ import ProjectsList from './projects-list'
 import SelectOwnerForm from '../select-owner-form'
 import { useUserListContext } from '../../../user-list/context/user-list-context'
 import { useProjectListContext } from '../../context/project-list-context'
-import { User } from '../../../../../types/user/api'
-import OLRow from '@/shared/components/ol/ol-row'
-import OLCol from '@/shared/components/ol/ol-col'
 import OLForm from '@/shared/components/ol/ol-form'
 import OLFormGroup from '@/shared/components/ol/ol-form-group'
-import OLFormLabel from '@/shared/components/ol/ol-form-label'
-import OLFormCheckbox from '@/shared/components/ol/ol-form-checkbox'
-import OLSpinner from '@/shared/components/ol/ol-spinner'
 import sortUsers from '../../../user-list/util/sort-users'
 
 type TransferProjectModalProps = Pick<
@@ -51,21 +45,18 @@ function TransferProjectModal({
   }, [loadedUsers, projectsOwnerId])
 
   const [newOwner, setNewOwner] = useState<UserRef | null>(null)
-  const [sendEmails, setSendEmails] = useState(false)
 
   const options = useMemo(() => {
     if (!newOwner) return null
 
     return {
       user_id: newOwner.id,
-      skipEmails: !sendEmails,
     }
-  }, [newOwner, sendEmails])
+  }, [newOwner])
 
   useEffect(() => {
     if (showModal) {
       setNewOwner(null)
-      setSendEmails(false)
     }
   }, [showModal])
 
@@ -79,10 +70,6 @@ function TransferProjectModal({
     }
   }, [showModal, projects])
 
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSendEmails(e.currentTarget.checked)
-  }
-
   return (
     <ProjectsActionModal
       action="transfer"
@@ -92,6 +79,7 @@ function TransferProjectModal({
       handleCloseModal={handleCloseModal}
       projects={projects}
       options={options}
+      actionIsDisabled={!newOwner}
     >
       <p>{t('their_projects_will_be_transferred_to_another_user')}</p>
       <ProjectsList projects={projects} projectsToDisplay={projectsToDisplay} />
@@ -105,16 +93,6 @@ function TransferProjectModal({
             onChange={setNewOwner}
           />
         </OLFormGroup>
-
-          {/* <OLFormGroup controlId="send_notification_emails_checkbox">
-            <OLFormCheckbox
-              autoComplete="off"
-              onChange={handleCheckboxChange}
-              name="sendEmails"
-              label={t('send_notification_emails_to_users')}
-              checked={sendEmails}
-            />
-          </OLFormGroup> */}
       </OLForm>
     </ProjectsActionModal>
   )

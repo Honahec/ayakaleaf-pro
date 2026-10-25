@@ -2,7 +2,7 @@
 # Instead run bin/update_build_scripts from
 # https://github.com/overleaf/internal/
 
-FROM node:24.18.1 AS base
+FROM node:24.22.1 AS base
 
 # Corepack setup, shared between all the images.
 ENV COREPACK_HOME=/opt/corepack

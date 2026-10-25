@@ -5,12 +5,12 @@ import logger from '@overleaf/logger'
 import SyncStateManager from './SyncStateManager.mjs'
 import api from './GitHubApiClient.mjs'
 import HistoryManager from './HistoryManager.mjs'
-import { GitConflictError, GitNotLinkedError } from './GitSyncErrors.mjs'
+import { GitConflictError, GitNotLinkedError, NotFoundError } from './GitSyncErrors.mjs'
 import TokenManager from './TokenManager.mjs'
-import { ObjectId } from '../../../../app/src/infrastructure/mongodb.mjs'
 import LockManager from '../../../../app/src/infrastructure/LockManager.mjs'
-import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEntityHandler.mjs'
 import UpdateMerger from '../../../../app/src/Features/ThirdPartyDataStore/UpdateMerger.mjs'
+import EditorController from '../../../../app/src/Features/Editor/EditorController.mjs'
+import Errors from '../../../../app/src/Features/Errors/Errors.js'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 
 const SyncLockManager = LockManager.withTimeout(300) // 5 min
@@ -47,9 +47,32 @@ async function doGitMergeWithoutLock(userId, projectId, message, claimConflictIs
   const currentVersion = await HistoryManager.latestVersion(projectId)
   const defaultBranchHead = await api.getBranchHead(token, repoFullName, defaultBranchName)
 
+  // 'I have manually merged' is only trusted once GitHub confirms the merge,
+  // otherwise the default branch would replace the unmerged OL changes
+  let syncStatus = mergeStatus
+  if (mergeStatus === 'conflict') {
+    const merged = await api.isBranchMerged(token, repoFullName, {
+      base: defaultBranchName,
+      baseHead: defaultBranchHead,
+      branch: unmergedBranchName,
+      branchHead: projectSyncState.unmergedBranchHead,
+    })
+    if (!merged) {
+      const branchExists = await api.getBranchHead(token, repoFullName, unmergedBranchName)
+        .then(() => true, err => {
+          if (err instanceof NotFoundError) return false
+          throw err
+        })
+      if (branchExists) return { mergeStatus, repoFullName, unmergedBranchName }
+      // The branch was deleted unmerged and its commits may be gone: rebuild
+      // it from the Overleaf history, as after a force push
+      syncStatus = 'diverged'
+    }
+  }
+
   let newUnmergedBranchName
 
-  switch (mergeStatus) {
+  switch (syncStatus) {
 
     case 'clean':
       newUnmergedBranchName = await resolveCleanSyncState(
@@ -529,12 +552,25 @@ async function applyGitSnapshotToProject({ token, userId, projectId, repoFullNam
   )
   const localLimit = pLimit(5)
   await Promise.all(
-    deletions.map(path => localLimit(() => {
-      return UpdateMerger.promises.deleteUpdate(userId, projectId, '/' + path, 'github')
+    deletions.map(path => localLimit(async () => {
+      try {
+        await EditorController.promises.deleteEntityWithPath(projectId, '/' + path, 'github', userId)
+      } catch (err) {
+        // already gone in Overleaf
+        if (!(err instanceof Errors.NotFoundError)) throw err
+      }
     }))
   )
 
-  return await HistoryManager.latestVersion(projectId)
+  const newVersion = await HistoryManager.latestVersion(projectId)
+  if (newVersion === currentVersion) return newVersion
+  // Edits made by others while pulling are not on GitHub yet: keep them
+  // pending by syncing from the version before the pull
+  const pullUpdates = (await HistoryManager.getUpdates(projectId))
+    .filter(update => update.toV > currentVersion && update.fromV < newVersion)
+  const onlyPulled = pullUpdates.at(-1)?.fromV <= currentVersion &&
+    pullUpdates.every(update => update.meta.origin?.kind === 'github')
+  return onlyPulled ? newVersion : currentVersion
 }
 
 async function buildDetachedSyncPlan({
@@ -737,7 +773,7 @@ async function exportChangesToGit({
 function generateBranchName() {
   const d = new Date()
   const pad = n => `${n}`.padStart(2, '0')
-  return `overleaf-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+  return `overleaf-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
 }
 
 async function getGitBlobMap(token, repoFullName, commit) {
@@ -756,7 +792,7 @@ function getEntryHash(entry) {
 }
 
 function gitBlobShaFromString(str) {
-  if (!str) return null
+  if (str == null) return null
   const content = Buffer.from(str, 'utf8')
   const header = Buffer.from(`blob ${content.length}\0`, 'utf8')
   const store = Buffer.concat([header, content])

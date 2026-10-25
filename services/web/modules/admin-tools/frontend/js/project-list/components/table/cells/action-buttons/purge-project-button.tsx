@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { memo, useCallback, useState } from 'react'
-import getMeta from '@/utils/meta'
 import { Project } from '../../../../../../../types/project/api'
 import PurgeProjectModal from '../../../modals/purge-project-modal'
 import useIsMounted from '@/shared/hooks/use-is-mounted'
@@ -20,7 +19,7 @@ function PurgeProjectButton({ project, children }: PurgeProjectButtonProps) {
 
   const { removeProjectFromView } = useProjectListContext()
   const { t } = useTranslation()
-  const text = t('purge')
+  const text = t('delete_permanently')
   const [showModal, setShowModal] = useState(false)
   const isMounted = useIsMounted()
 

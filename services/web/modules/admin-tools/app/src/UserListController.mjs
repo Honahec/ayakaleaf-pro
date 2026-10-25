@@ -18,10 +18,13 @@ import UserUpdater from '../../../../app/src/Features/User/UserUpdater.mjs'
 import UserDeleter from '../../../../app/src/Features/User/UserDeleter.mjs'
 import UserSettingsHelper from '../../../../app/src/Features/Project/UserSettingsHelper.mjs'
 import ProjectDeleter from '../../../../app/src/Features/Project/ProjectDeleter.mjs'
+import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
+import EditorRealTimeController from '../../../../app/src/Features/Editor/EditorRealTimeController.mjs'
 import OwnershipTransferHandler from '../../../../app/src/Features/Collaborators/OwnershipTransferHandler.mjs'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
 import Errors, { OError } from '../../../../app/src/Features/Errors/Errors.js'
+import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
 import { db } from '../../../../app/src/infrastructure/mongodb.mjs'
 import AuthenticationManager from '../../../../app/src/Features/Authentication/AuthenticationManager.mjs'
@@ -144,8 +147,6 @@ async function registerNewUser(req, res, next) {
     }
     if (isExternal) {
       update.$unset = { hashedPassword: "" }
-    } else {
-      await _sendActivationEmail(user._id.toString())
     }
     await User.updateOne({ _id: user._id }, update).exec()
   } catch (err) {
@@ -153,6 +154,16 @@ async function registerNewUser(req, res, next) {
       email: user.email,
     })
     throw err
+  }
+
+  // The account exists by now, a failed email must not fail the request:
+  // the admin can resend the activation email from the user list
+  if (!isExternal) {
+    try {
+      await _sendActivationEmail(user._id.toString())
+    } catch (err) {
+      logger.warn({ err, userId: user._id }, 'failed to send activation email to new user')
+    }
   }
 
   const authMethods = isExternal ? [] : ['local']
@@ -290,13 +301,15 @@ async function _searchUsers(searchTerm) {
     'features.compileTimeout': 1,
     'aiFeatures.enabled': 1,
   }
+  // the search is a literal, as in the template gallery
+  const pattern = _.escapeRegExp(searchTerm)
 
   const activeUsers = await User.find({
     $or: [
-      { email: { $regex: searchTerm, $options: 'i' } },
-      { first_name: { $regex: searchTerm, $options: 'i' } },
-      { last_name: { $regex: searchTerm, $options: 'i' } },
-      { $expr: { $regexMatch: { input: { $toString: '$_id' }, regex: searchTerm, options: 'i' } } }
+      { email: { $regex: pattern, $options: 'i' } },
+      { first_name: { $regex: pattern, $options: 'i' } },
+      { last_name: { $regex: pattern, $options: 'i' } },
+      { $expr: { $regexMatch: { input: { $toString: '$_id' }, regex: pattern, options: 'i' } } }
     ]
   }, projection)
   .limit(1000)
@@ -310,10 +323,10 @@ async function _searchUsers(searchTerm) {
 
   const deletedUsers = await DeletedUser.aggregate([
     { $match: { user: { $type: 'object' }, $or: [
-      { 'user.email': { $regex: searchTerm, $options: 'i' } },
-      { 'user.first_name': { $regex: searchTerm, $options: 'i' } },
-      { 'user.last_name': { $regex: searchTerm, $options: 'i' } },
-      { $expr: { $regexMatch: { input: { $toString: '$user._id' }, regex: searchTerm, options: 'i' } } }
+      { 'user.email': { $regex: pattern, $options: 'i' } },
+      { 'user.first_name': { $regex: pattern, $options: 'i' } },
+      { 'user.last_name': { $regex: pattern, $options: 'i' } },
+      { $expr: { $regexMatch: { input: { $toString: '$user._id' }, regex: pattern, options: 'i' } } }
     ] } },
     { $project: projectionDeleted },
     { $limit: 1000 },
@@ -485,9 +498,12 @@ async function deleteUser(req, res, next) {
       deleterUser: { '_id': deleterUserId },
       ipAddress: req.ip,
       skipEmail: !sendEmail,
+      // a failed email must not stop the deletion halfway: by then the
+      // user's projects are already deleted
+      force: true,
     })
   } catch (err) {
-    logger.warn({ deleterUser, userId }, err.message)
+    logger.warn({ deleterUserId, userId }, err.message)
     if (toUserId) {
       try { // failed to delete user, try to transfer all projects back
         await OwnershipTransferHandler.promises.transferAllProjectsToUser({
@@ -516,9 +532,9 @@ async function purgeDeletedUser(req, res, next) {
 
   logger.debug({ deleterUserId, userId }, 'admin is trying to purge deleted user account')
   try {
-    UserDeleter.promises.expireDeletedUser(userId)
+    await UserDeleter.promises.expireDeletedUser(userId)
   } catch (err) {
-    logger.warn({ restorerId, userId }, err.message)
+    logger.warn({ deleterUserId, userId }, err.message)
     const message = 'Something went wrong. The user is already deleted?'
     return HttpErrorHandler.unprocessableEntity(req, res, message)
   }
@@ -547,6 +563,8 @@ async function restoreDeletedUser(req, res, next) {
     }
 
     userData.suspended = false
+    // users deleted before the analyticsId back-fill migration have no analyticsId
+    userData.analyticsId ??= userData._id.toString()
     await User.create(userData)
     await DeletedUser.deleteOne({ "user._id": userId })
 
@@ -602,6 +620,7 @@ async function updateUser(req, res, next) {
   }
 
   const projection = Object.fromEntries(Object.keys(updatesInput).map(k => [k, 1]))
+  if ('password' in updatesInput) projection.hashedPassword = 1
   const user = await User.findById(userId, projection).exec()
 
   if (!user) {
@@ -611,7 +630,7 @@ async function updateUser(req, res, next) {
   let emailIsUpdated = false
   const newEmail = updatesInput.email?.trim().toLowerCase()
   if (newEmail != null && newEmail !== user.email) { // email is updated
-    if (newEmail.indexOf('@') === -1) {
+    if (!EmailHelper.parseEmail(newEmail)) {
       const message = req.i18n.translate('email_address_is_invalid')
       return HttpErrorHandler.unprocessableEntity(req, res, message)
     }
@@ -651,7 +670,7 @@ async function updateUser(req, res, next) {
         if ('collaborators' in features && (!Number.isInteger(features.collaborators) || features.collaborators < -1)) {
           return HttpErrorHandler.unprocessableEntity(req, res, 'invalid_collaborators')
         }
-        if ('compileTimeout' in features && (!Number.isInteger(features.compileTimeout) || features.compileTimeout <= 0)) {
+        if ('compileTimeout' in features && (!Number.isInteger(features.compileTimeout) || features.compileTimeout <= 0 || features.compileTimeout > 600)) {
           return HttpErrorHandler.unprocessableEntity(req, res, 'invalid_compile_timeout')
         }
       }
@@ -666,6 +685,10 @@ async function updateUser(req, res, next) {
       // ignore empty password updates
       if (value == null || value === '') {
         continue
+      }
+      // an account without a local password logs in through SSO only
+      if (!user.hashedPassword) {
+        return HttpErrorHandler.unprocessableEntity(req, res, 'This account logs in through SSO and cannot have a password')
       }
       // validate password
       if (typeof value !== 'string' || value.length < 8) {
@@ -687,6 +710,8 @@ async function updateUser(req, res, next) {
 
     const newValue = typeof value === 'string' ? value.trim() : value
     if (newValue === user[key]) continue
+    // Suspended below, which also ends the sessions of the user
+    if (key === 'suspended' && newValue === true) continue
 
     update[key] = newValue
   }
@@ -696,6 +721,19 @@ async function updateUser(req, res, next) {
     await user.save()
   } catch {
     throw new OError('problem updating user settings', { userId })
+  }
+
+  if (updatesInput.suspended === true && user.suspended !== true) {
+    await UserUpdater.promises.suspendUser(userId, {
+      initiatorId: actorUserId,
+      ip: req.ip,
+    })
+    // Close the editors the user has open, as when removed from a project
+    const projects = await ProjectGetter.promises.findAllUsersProjects(userId, '_id')
+    for (const project of Object.values(projects).flat()) {
+      EditorRealTimeController.emitToRoom(project._id, 'userRemovedFromProject', userId)
+    }
+    update.suspended = true
   }
 
   if (userId == actorUserId) {
